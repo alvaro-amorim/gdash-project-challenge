@@ -39,7 +39,17 @@ services:
     ports:
       - "3000:3000"
     environment:
-      MONGO_URI: mongodb://admin:password123@mongo:27017/gdash?authSource=admin
+      MONGO_URI: ${MONGO_URI:-mongodb://admin:password123@mongo:27017/gdash?authSource=admin}
+      JWT_SECRET: ${JWT_SECRET:-GDASH_DEV_SECRET_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@gdash.io}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin GDASH}
       TZ: America/Sao_Paulo
     depends_on:
       - mongo
@@ -53,8 +63,9 @@ services:
     restart: always
     environment:
       RABBIT_HOST: rabbitmq
+      API_HOST: backend
       TZ: America/Sao_Paulo
-      GEMINI_API_KEY: AIzaSyDCMurLKljgVFmFsoW0lN3Jlzwer8abgW0
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       - rabbitmq
     networks:
@@ -82,6 +93,9 @@ services:
     restart: always
     ports:
       - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000}
+      VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     networks:
       - gdash-net
 

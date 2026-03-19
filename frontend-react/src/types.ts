@@ -1,0 +1,57 @@
+export interface WeatherData {
+  _id: string;
+  temp: number;
+  humidity: number;
+  wind_speed: number;
+  precipitation: number;
+  collected_at: string;
+  insight?: string;
+  insight_source?: 'ai' | 'fallback';
+  has_active_viewer?: boolean;
+  is_day?: number;
+}
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'user';
+  provider: 'email' | 'google';
+  avatarUrl?: string | null;
+  emailVerified: boolean;
+  lastLoginAt?: string | null;
+  createdAt?: string | null;
+}
+
+export interface AuthState {
+  token: string;
+  user: AuthUser;
+}
+
+export interface AuthApiResponse {
+  access_token: string;
+  user: AuthUser;
+}
+
+export interface VisitRecord {
+  id: string;
+  sessionId: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  path?: string | null;
+  userAgent?: string | null;
+  ip?: string | null;
+  startedAt: string;
+  lastSeenAt: string;
+  endedAt?: string | null;
+  active: boolean;
+}
+
+export interface AdminOverview {
+  totalUsers: number;
+  verifiedUsers: number;
+  activeUsers: number;
+  totalVisits: number;
+  visitsToday: number;
+}

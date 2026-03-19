@@ -29,6 +29,12 @@ export class Weather {
   @Prop({ required: true })
   insight: string; // AI Generated Text
 
+  @Prop({ default: 'fallback' })
+  insight_source?: string;
+
+  @Prop({ default: false })
+  has_active_viewer?: boolean;
+
   @Prop({ required: true })
   collected_at: string; // ISO Date String
 }

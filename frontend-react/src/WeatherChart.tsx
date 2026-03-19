@@ -1,132 +1,217 @@
-import { 
-  ComposedChart, Area, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
+import {
+  Area,
+  Bar,
+  Brush,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
+import type { WeatherData } from './types';
 
 interface ChartProps {
-  data: any[];
+  data: WeatherData[];
 }
 
-// Custom Tooltip Component for better UX
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white border border-gray-200 p-4 rounded-lg shadow-xl z-50">
-        <p className="text-gray-600 font-mono text-xs mb-2 font-bold">{new Date(label).toLocaleString()}</p>
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 mb-1 last:mb-0">
-            <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: entry.color }} />
-            <span className="text-gray-600 text-sm font-medium">{entry.name}:</span>
-            <span className="text-gray-900 text-sm font-bold">
-              {entry.value} {entry.unit}
+function formatTimestamp(value: string) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ color: string; name: string; value: number; unit?: string }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length || !label) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[22px] border border-slate-200/80 bg-white/95 p-4 shadow-[0_20px_45px_-25px_rgba(15,23,42,0.35)] backdrop-blur-xl">
+      <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.22em] text-brand-muted">
+        {new Date(label).toLocaleString()}
+      </p>
+      <div className="space-y-2">
+        {payload.map((entry) => (
+          <div key={`${entry.name}-${entry.color}`} className="flex items-center justify-between gap-5 text-sm">
+            <div className="flex items-center gap-2 text-brand-muted">
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: entry.color }}
+              />
+              <span>{entry.name}</span>
+            </div>
+            <span className="font-semibold text-brand-dark">
+              {entry.value}
+              {entry.unit || ''}
             </span>
           </div>
         ))}
       </div>
-    );
-  }
-  return null;
-};
+    </div>
+  );
+}
 
 export function WeatherChart({ data }: ChartProps) {
   const chartData = [...data].reverse();
+  const temperatures = chartData.map((item) => item.temp);
+  const humidities = chartData.map((item) => item.humidity);
+  const windSpeeds = chartData.map((item) => item.wind_speed);
+
+  const minTemp = temperatures.length ? Math.min(...temperatures) : 0;
+  const maxTemp = temperatures.length ? Math.max(...temperatures) : 0;
+  const avgHumidity = humidities.length
+    ? Math.round(humidities.reduce((sum, value) => sum + value, 0) / humidities.length)
+    : 0;
+  const peakWind = windSpeeds.length ? Math.max(...windSpeeds) : 0;
 
   return (
-    <div className="h-[450px] w-full bg-white p-6 rounded-xl border border-gray-200 shadow-sm mb-8">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-gray-800 font-bold text-lg flex items-center gap-2">
-            📊 Monitoramento em Tempo Real
-        </h3>
+    <section className="glass-panel overflow-hidden p-5 sm:p-7">
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="section-kicker mb-2">Observabilidade ao vivo</p>
+          <h3 className="font-display text-2xl font-bold text-brand-dark">
+            Tendencias climaticas sem travar a leitura.
+          </h3>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-brand-muted">
+            O grafico acompanha o historico recente com foco em temperatura, umidade e vento,
+            mantendo a interacao leve mesmo com polling continuo.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            ['Min', `${minTemp.toFixed(1)}°C`],
+            ['Max', `${maxTemp.toFixed(1)}°C`],
+            ['Umidade media', `${avgHumidity}%`],
+            ['Pico de vento', `${peakWind.toFixed(1)} km/h`],
+          ].map(([label, value]) => (
+            <div key={label} className="metric-panel min-w-[120px] px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-muted">
+                {label}
+              </p>
+              <p className="mt-2 font-display text-xl font-bold text-brand-dark">{value}</p>
+            </div>
+          ))}
+        </div>
       </div>
-      
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-          <defs>
-            <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#10B981" stopOpacity={0.2}/>
-              <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
 
-          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
-          
-          <XAxis 
-            dataKey="collected_at" 
-            tickFormatter={(time) => new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            stroke="#9CA3AF"
-            tick={{ fontSize: 11, fill: '#6B7280' }}
-            tickMargin={10}
-            minTickGap={40}
-            axisLine={false}
-            tickLine={false}
-          />
-          
-          {/* Left Axis: Temperature */}
-          <YAxis 
-            yAxisId="left"
-            stroke="#9CA3AF" 
-            domain={['auto', 'auto']} 
-            tick={{ fontSize: 11, fill: '#6B7280' }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(value) => `${value}°`}
-          />
+      <div className="h-[340px] sm:h-[400px] xl:h-[460px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 16, right: 8, left: -18, bottom: 14 }}>
+            <defs>
+              <linearGradient id="humidityFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#0f9f8f" stopOpacity={0.22} />
+                <stop offset="95%" stopColor="#0f9f8f" stopOpacity={0.02} />
+              </linearGradient>
+              <linearGradient id="windFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#7c6cff" stopOpacity={0.42} />
+                <stop offset="100%" stopColor="#7c6cff" stopOpacity={0.10} />
+              </linearGradient>
+            </defs>
 
-          {/* Right Axis: Humidity */}
-          <YAxis 
-            yAxisId="right"
-            orientation="right"
-            stroke="#9CA3AF" 
-            domain={[0, 100]} 
-            tick={{ fontSize: 11, fill: '#6B7280' }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(value) => `${value}%`}
-          />
-          
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#D1D5DB', strokeWidth: 1, strokeDasharray: '4 4' }} />
-          
-          <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
+            <CartesianGrid vertical={false} strokeDasharray="4 6" stroke="#d7e2ea" />
+            <ReferenceLine yAxisId="temp" y={24} stroke="#f59e0b" strokeDasharray="4 6" strokeOpacity={0.35} />
 
-          {/* AREA: Temperature (Green) */}
-          <Area 
-            yAxisId="left"
-            type="monotone"
-            dataKey="temp"
-            name="Temperatura"
-            unit="°C"
-            stroke="#10B981"
-            fill="url(#colorTemp)"
-            strokeWidth={3}
-            activeDot={{ r: 6, strokeWidth: 0, fill: '#065F46' }}
-          />
+            <XAxis
+              dataKey="collected_at"
+              tickFormatter={formatTimestamp}
+              stroke="#7a8ca1"
+              tick={{ fontSize: 11, fill: '#5f7288' }}
+              tickMargin={10}
+              minTickGap={26}
+              axisLine={false}
+              tickLine={false}
+            />
 
-          {/* LINE: Humidity (Blue) */}
-          <Line 
-            yAxisId="right"
-            type="monotone"
-            dataKey="humidity"
-            name="Umidade"
-            unit="%"
-            stroke="#0EA5E9" 
-            strokeWidth={2}
-            dot={false}
-            activeDot={{ r: 4 }}
-          />
+            <YAxis
+              yAxisId="temp"
+              stroke="#7a8ca1"
+              tick={{ fontSize: 11, fill: '#5f7288' }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(value) => `${value}°`}
+              width={38}
+            />
 
-          {/* BAR: Wind Speed (Purple) */}
-          <Bar 
-            yAxisId="left"
-            dataKey="wind_speed"
-            name="Vento"
-            unit="km/h"
-            barSize={10}
-            fill="#8B5CF6"
-            opacity={0.3}
-            radius={[4, 4, 0, 0]}
-          />
+            <YAxis
+              yAxisId="humidity"
+              orientation="right"
+              domain={[0, 100]}
+              stroke="#7a8ca1"
+              tick={{ fontSize: 11, fill: '#5f7288' }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(value) => `${value}%`}
+              width={42}
+            />
 
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
+            <Tooltip
+              content={<CustomTooltip />}
+              cursor={{ stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4 5', opacity: 0.4 }}
+            />
+            <Legend
+              wrapperStyle={{ paddingTop: '20px' }}
+              iconType="circle"
+              formatter={(value) => <span style={{ color: '#233345' }}>{value}</span>}
+            />
+
+            <Area
+              yAxisId="humidity"
+              type="monotone"
+              dataKey="humidity"
+              name="Umidade"
+              unit="%"
+              stroke="#0f9f8f"
+              fill="url(#humidityFill)"
+              strokeWidth={2.5}
+              activeDot={{ r: 5, fill: '#0b7f73', strokeWidth: 0 }}
+            />
+
+            <Line
+              yAxisId="temp"
+              type="monotone"
+              dataKey="temp"
+              name="Temperatura"
+              unit="°C"
+              stroke="#f97316"
+              strokeWidth={3}
+              dot={false}
+              activeDot={{ r: 6, fill: '#ea580c', strokeWidth: 0 }}
+            />
+
+            <Bar
+              yAxisId="temp"
+              dataKey="wind_speed"
+              name="Vento"
+              unit=" km/h"
+              barSize={12}
+              fill="url(#windFill)"
+              radius={[10, 10, 0, 0]}
+            />
+
+            <Brush
+              dataKey="collected_at"
+              height={22}
+              stroke="#0f9f8f"
+              travellerWidth={10}
+              tickFormatter={formatTimestamp}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
   );
 }

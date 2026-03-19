@@ -12,6 +12,8 @@ class CreateWeatherDto {
   wind_speed: number;
   precipitation: number;
   insight: string;
+  insight_source?: string;
+  has_active_viewer?: boolean;
   is_day: number;
   collected_at: string;
   latitude: string;

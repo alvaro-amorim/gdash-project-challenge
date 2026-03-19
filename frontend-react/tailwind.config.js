@@ -8,18 +8,21 @@ export default {
     extend: {
       colors: {
         brand: {
-          primary: '#10B981',  
-          secondary: '#059669', 
-          dark: '#F3F4F6',      
-          surface: '#FFFFFF',   
-          text: '#111827',     
-          muted: '#6B7280',     
-          border: '#E5E7EB'    
-        }
+          primary: '#0f9f8f',
+          secondary: '#186b82',
+          accent: '#f59e0b',
+          dark: '#0f172a',
+          surface: '#ffffff',
+          text: '#102033',
+          muted: '#5f7288',
+          border: '#d7e2ea',
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-      }
+        sans: ['"Manrope"', 'system-ui', 'sans-serif'],
+        display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
     },
   },
   plugins: [],

@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { AuthModule } from './auth/auth.module';
 import { WeatherModule } from './weather/weather.module';
 import { UsersModule } from './users/users.module';
 
@@ -12,6 +14,8 @@ import { UsersModule } from './users/users.module';
     ),
     WeatherModule,
     UsersModule,
+    AuthModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

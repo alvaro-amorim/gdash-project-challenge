@@ -1,128 +1,214 @@
-# 🌦️ GDASH Challenge - Intelligent Weather Monitor
+🌦️ GDASH Challenge - Intelligent Weather Monitor
 
-> Uma plataforma Full-Stack de monitoramento climático em tempo real, baseada em arquitetura de microsserviços orientada a eventos e alimentada por Inteligência Artificial Generativa.
+Uma plataforma Full-Stack de monitoramento climático em tempo real, baseada em arquitetura de microsserviços orientada a eventos e alimentada por Inteligência Artificial Generativa.
 
-![Badge Status](https://img.shields.io/badge/Status-Finished-green)
-![Badge Docker](https://img.shields.io/badge/Docker-Enabled-blue)
-![Badge AI](https://img.shields.io/badge/AI-Gemini-purple)
+🧠 Configuração da Inteligência Artificial (IMPORTANTE)
 
----
+O sistema utiliza o Google Gemini 1.5 Flash para gerar insights climáticos avançados.
+Sem a chave de API, o projeto funciona em modo de contingência (Fallback), com regras locais simplificadas.
 
-## 📋 Sobre o Projeto
+🔑 Como gerar sua chave
 
-Esta solução foi desenvolvida como parte do processo seletivo da GDASH. O objetivo foi criar um sistema resiliente e escalável que não apenas coleta dados meteorológicos, mas gera **inteligência contextual** sobre eles.
+Acesse o Google AI Studio:
+https://aistudio.google.com/app/apikey
+
+Clique em Create API key.
+
+Copie a chave gerada (começa com AIza...).
+
+📥 Onde inserir a chave
+
+Abra o arquivo docker-compose.yml na raiz do projeto e cole a sua chave na variável GEMINI_API_KEY:
+
+collector:
+  environment:
+    GEMINI_API_KEY: "SUA_CHAVE_AQUI"
+
+
+Alternativa: você pode exportar a variável no terminal antes de subir os containers:
+
+export GEMINI_API_KEY="AIza...SUA_CHAVE..."
+docker-compose up -d --build
+
+
+📋 Sobre o Projeto
+
+Esta solução foi desenvolvida como parte do processo seletivo da GDASH. O objetivo foi criar um sistema resiliente e escalável que não apenas coleta dados meteorológicos, mas gera inteligência contextual sobre eles.
 
 O sistema coleta dados da Open-Meteo, processa-os através de uma pipeline de mensageria robusta e apresenta-os num Dashboard interativo que se adapta visualmente ao ciclo dia/noite.
 
-### 🚀 Diferenciais Implementados
-* **IA Generativa Real:** Integração com **Google Gemini 1.5 Flash** para gerar insights climáticos únicos e humanizados.
-* **Resiliência (Fallback):** Sistema de contingência que ativa uma lógica local robusta caso a API de IA falhe ou fique offline.
-* **UX Profissional:** Interface moderna que alterna temas automaticamente (Dia/Noite) e gráficos fluídos sem "flicker" de carregamento.
-* **Auditoria:** Ferramentas completas de filtragem histórica e exportação de relatórios oficiais (Excel/CSV).
+🚀 Diferenciais Implementados
 
----
+IA Generativa Real: Integração com Google Gemini 1.5 Flash para gerar insights climáticos únicos e humanizados.
 
-## ⚙️ Arquitetura da Solução
+Resiliência (Fallback): Sistema de contingência que ativa uma lógica local robusta caso a API de IA falhe ou fique offline.
+
+UX Profissional: Interface moderna que alterna temas automaticamente (Dia/Noite) e gráficos fluídos sem "flicker" de carregamento.
+
+Auditoria: Ferramentas completas de filtragem histórica e exportação de relatórios oficiais (Excel/CSV).
+
+⚙️ Arquitetura da Solução
 
 O sistema segue uma arquitetura desacoplada onde cada serviço possui responsabilidade única:
 
-![Diagrama de Arquitetura](./assets/arquitetura.jpg)
+Collector (Python 3.11):
 
-1.  **Collector (Python 3.11):**
-    * Ingestão de dados da Open-Meteo.
-    * Conexão com Google Gemini para enriquecimento de dados (Insights).
-    * Produtor de mensagens para o RabbitMQ.
-2.  **Message Broker (RabbitMQ):**
-    * Garante o desacoplamento e a persistência dos dados entre coleta e processamento.
-3.  **Worker (Go 1.24):**
-    * Consumidor de alta performance.
-    * Processa a fila e despacha os dados validados para a API via HTTP.
-4.  **API (NestJS / Node 20):**
-    * Gestão de regras de negócio, autenticação JWT e persistência no MongoDB.
-    * Geração de relatórios (Excel/CSV).
-    * Documentação automática via Swagger.
-5.  **Frontend (React + Vite):**
-    * Dashboard em tempo real (Polling inteligente).
-    * Gráficos interativos com Recharts e estilização com Tailwind CSS.
+Ingestão de dados da Open-Meteo.
 
----
+Conexão com Google Gemini para enriquecimento de dados (Insights).
 
-## 🛠️ Tecnologias Utilizadas
+Produtor de mensagens para o RabbitMQ.
 
-| Camada | Tecnologia | Detalhes |
-| :--- | :--- | :--- |
-| **Infraestrutura** | Docker & Compose | Orquestração completa dos 6 serviços |
-| **Coleta & IA** | Python 3.11 | Requests, Pika, Google GenAI SDK |
-| **Mensageria** | RabbitMQ | Gestão de filas e exchanges |
-| **Worker** | Go (Golang) 1.24 | Processamento concorrente de alta velocidade |
-| **Backend** | NestJS (Node 20) | TypeScript, Mongoose, Swagger, ExcelJS |
-| **Banco de Dados** | MongoDB | Armazenamento de logs históricos |
-| **Frontend** | React (Vite) | TypeScript, TailwindCSS, Recharts |
+Message Broker (RabbitMQ):
 
----
+Garante o desacoplamento e a persistência dos dados entre coleta e processamento.
 
-## 🚀 Como Rodar o Projeto
+Worker (Go 1.24):
 
-### Pré-requisitos
-* **Docker** e **Docker Compose** instalados e rodando.
+Consumidor de alta performance.
 
-### Passo a Passo
+Processa a fila e despacha os dados validados para a API via HTTP.
 
-1.  **Clone o repositório:**
-    ```bash
-    git clone <https://github.com/alvaro-amorim/desafio-gdash-2025-02.git>
-    cd gdash-challenge
-    ```
+API (NestJS / Node 20):
 
-2.  **Suba a infraestrutura:**
-    Execute o comando abaixo na raiz do projeto. O flag `--build` garante que as imagens mais recentes (com as configurações de IA e temas) sejam geradas.
-    ```bash
-    docker-compose up -d --build
-    ```
-    *Aguarde alguns instantes para o download das imagens e inicialização dos serviços.*
+Gestão de regras de negócio, autenticação JWT e persistência no MongoDB.
 
-3.  **Verifique o status:**
-    ```bash
-    docker ps
-    ```
-    Todos os 6 containers (`gdash_frontend`, `gdash_backend`, `gdash_worker`, `gdash_collector`, `mongo`, `rabbitmq`) devem estar com status `Up`.
+Geração de relatórios (Excel/CSV).
 
----
+Documentação automática via Swagger.
 
-## 🔑 Acesso ao Sistema
+Frontend (React + Vite):
 
-### 🖥️ Dashboard (Frontend)
-* **URL:** [http://localhost:5173](http://localhost:5173)
-* **Credenciais de Acesso (Admin):**
-    * **Email:** `admin@gdash.io`
-    * **Senha:** `123456`
+Dashboard em tempo real (Polling inteligente).
 
-### 📚 Documentação da API (Swagger)
-* **URL:** [http://localhost:3000/api](http://localhost:3000/api)
-* Explore e teste os endpoints diretamente pelo navegador.
+Gráficos interativos com Recharts e estilização com Tailwind CSS.
 
-### 🐰 Painel do RabbitMQ
-* **URL:** [http://localhost:15672](http://localhost:15672)
-* **Login:** `admin` / `password123`
+🛠️ Tecnologias Utilizadas
 
----
+Camada
 
-## ⚠️ Nota sobre a API de IA (Google Gemini)
+Tecnologia
 
-Para facilitar a avaliação deste desafio, o arquivo `docker-compose.yml` **inclui uma API Key de demonstração** pré-configurada.
+Detalhes
 
-> **Observação de Segurança:** Em um ambiente de produção real, esta chave seria injetada via variáveis de ambiente (CI/CD) e nunca commitada no repositório.
+Infraestrutura
 
-Caso a chave de demonstração atinja o limite de uso ou seja revogada, o sistema entrará automaticamente no modo de **Fallback**, utilizando um algoritmo local robusto para gerar os insights, garantindo que a aplicação **nunca pare de funcionar**.
+Docker & Compose
 
----
+Orquestração completa dos 6 serviços
 
-## 📹 Vídeo de Apresentação
+Coleta & IA
+
+Python 3.11
+
+Requests, Pika, Google GenAI SDK
+
+Mensageria
+
+RabbitMQ
+
+Gestão de filas e exchanges
+
+Worker
+
+Go (Golang) 1.24
+
+Processamento concorrente de alta velocidade
+
+Backend
+
+NestJS (Node 20)
+
+TypeScript, Mongoose, Swagger, ExcelJS
+
+Banco de Dados
+
+MongoDB
+
+Armazenamento de logs históricos
+
+Frontend
+
+React (Vite)
+
+TypeScript, TailwindCSS, Recharts
+
+🚀 Como Rodar o Projeto
+
+Pré-requisitos
+
+Docker e Docker Compose instalados e rodando.
+
+Passo a Passo
+
+Clone o repositório
+
+git clone [https://github.com/alvaro-amorim/desafio-gdash-2025-02.git](https://github.com/alvaro-amorim/desafio-gdash-2025-02.git)
+cd gdash-challenge
+
+
+Gere sua chave de API no Google
+
+Acesse:
+https://aistudio.google.com/app/apikey
+
+Clique em Create API Key e copie a chave que começa com AIza....
+
+Adicione sua chave ao docker-compose.yml
+
+Ajuste a variável GEMINI_API_KEY dentro do serviço collector:
+
+# Exemplo de uso no docker-compose.yml
+collector:
+  environment:
+    GEMINI_API_KEY: "SUA_CHAVE_AQUI"
+
+
+Ou exporte no terminal:
+
+export GEMINI_API_KEY="AIza...sua_chave"
+
+
+Suba a infraestrutura
+
+docker-compose up -d --build
+
+
+Aguarde a inicialização completa.
+
+Verifique os serviços
+
+docker ps
+
+
+🔑 Acesso ao Sistema
+
+🖥️ Dashboard (Frontend)
+
+URL: http://localhost:5173
+
+Credenciais de Acesso (Admin):
+
+Email: admin@gdash.io
+
+Senha: 123456
+
+📚 Documentação da API (Swagger)
+
+URL: http://localhost:3000/api
+
+Explore e teste os endpoints diretamente pelo navegador.
+
+🐰 Painel do RabbitMQ
+
+URL: http://localhost:15672
+
+Login: admin / password123
+
+📹 Vídeo de Apresentação
 
 Confira a demonstração completa da arquitetura e funcionamento do sistema no link abaixo:
 
-[**▶️ Assistir Vídeo no YouTube**](https://youtu.be/YfpOK7r9LLI)
+▶️ Assistir Vídeo no YouTube
 
----
-
-Desenvolvido por **[Álvaro Amorim]**
+Desenvolvido por Álvaro Amorim

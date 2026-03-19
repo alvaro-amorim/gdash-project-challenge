@@ -1,29 +1,43 @@
-import { Injectable, OnModuleInit, Logger, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import { User, UserDocument } from './entities/user.schema';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { AuthProvider, User, UserDocument, UserRole } from './entities/user.schema';
+
+type CreateUserInput = CreateUserDto & {
+  createdBy?: string;
+  emailVerified?: boolean;
+  googleId?: string;
+  isActive?: boolean;
+  provider?: AuthProvider;
+  role?: UserRole;
+};
 
 @Injectable()
 export class UsersService implements OnModuleInit {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
-    private jwtService: JwtService,
-  ) {}
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
   async onModuleInit() {
-    const adminEmail = 'admin@gdash.io';
+    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@gdash.io').toLowerCase();
     try {
       const exists = await this.userModel.findOne({ email: adminEmail });
       if (!exists) {
-        const hashedPassword = await bcrypt.hash('123456', 10);
         await this.userModel.create({
-          name: 'Admin GDASH',
+          name: process.env.ADMIN_NAME || 'Admin GDASH',
           email: adminEmail,
-          password: hashedPassword,
+          role: 'admin',
+          provider: 'email',
+          emailVerified: false,
+          createdBy: 'system',
         });
         this.logger.log(`Default admin user created: ${adminEmail}`);
       }
@@ -32,49 +46,117 @@ export class UsersService implements OnModuleInit {
     }
   }
 
-  async login(email: string, pass: string): Promise<any> {
-    const user = await this.userModel.findOne({ email });
-    if (!user) return null;
-
-    const isMatch = await bcrypt.compare(pass, user.password);
-    if (!isMatch) return null;
-
-    const payload = { sub: user._id, email: user.email, name: user.name };
-    return {
-      access_token: this.jwtService.sign(payload),
-      user: { name: user.name, email: user.email },
-    };
+  async findByEmail(email: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ email: email.toLowerCase().trim() }).exec();
   }
 
-  // --- CRUD COMPLETO ---
+  async findByIdRaw(id: string): Promise<UserDocument | null> {
+    return this.userModel.findById(id).exec();
+  }
 
-  async create(createUserDto: any): Promise<User> {
-    const existing = await this.userModel.findOne({ email: createUserDto.email });
+  async findByIdOrThrow(id: string): Promise<UserDocument> {
+    const user = await this.findByIdRaw(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
+  }
+
+  async create(createUserDto: CreateUserDto, createdBy = 'admin'): Promise<Record<string, unknown>> {
+    const savedUser = await this.createRaw({
+      ...createUserDto,
+      createdBy,
+      provider: 'email',
+      emailVerified: false,
+      role: createUserDto.role || 'user',
+    });
+
+    return this.toPublicUser(savedUser);
+  }
+
+  async createRaw(createUserDto: CreateUserInput): Promise<UserDocument> {
+    const normalizedEmail = createUserDto.email.toLowerCase().trim();
+    const existing = await this.userModel.findOne({ email: normalizedEmail });
     if (existing) {
       throw new ConflictException('Email already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
     const createdUser = new this.userModel({
       ...createUserDto,
-      password: hashedPassword,
+      email: normalizedEmail,
+      role: createUserDto.role || 'user',
+      provider: createUserDto.provider || 'email',
+      emailVerified: createUserDto.emailVerified ?? false,
+      createdBy: createUserDto.createdBy || 'admin',
     });
-    
+
     return createdUser.save();
   }
 
-  async findAll(): Promise<User[]> {
-    return this.userModel.find().select('-password').exec();
+  async findAll(): Promise<Record<string, unknown>[]> {
+    const users = await this.userModel.find().sort({ createdAt: -1 }).exec();
+    return users.map((user) => this.toPublicUser(user));
   }
 
-  async findOne(id: string): Promise<User> {
-    const user = await this.userModel.findById(id).select('-password').exec();
-    if (!user) throw new NotFoundException('User not found');
-    return user;
+  async findOne(id: string): Promise<Record<string, unknown>> {
+    const user = await this.findByIdOrThrow(id);
+    return this.toPublicUser(user);
   }
 
   async remove(id: string): Promise<void> {
     const result = await this.userModel.findByIdAndDelete(id).exec();
     if (!result) throw new NotFoundException('User not found');
+  }
+
+  async updateProfile(id: string, updateUserDto: UpdateUserDto): Promise<Record<string, unknown>> {
+    const user = await this.findByIdOrThrow(id);
+
+    if (updateUserDto.email && updateUserDto.email.toLowerCase().trim() !== user.email) {
+      const existing = await this.userModel.findOne({
+        email: updateUserDto.email.toLowerCase().trim(),
+        _id: { $ne: id },
+      });
+
+      if (existing) {
+        throw new ConflictException('Email already exists');
+      }
+
+      user.email = updateUserDto.email.toLowerCase().trim();
+      user.emailVerified = false;
+    }
+
+    if (updateUserDto.name) {
+      user.name = updateUserDto.name.trim();
+    }
+
+    if (updateUserDto.avatarUrl !== undefined) {
+      user.avatarUrl = updateUserDto.avatarUrl?.trim() || undefined;
+    }
+
+    const savedUser = await user.save();
+    return this.toPublicUser(savedUser);
+  }
+
+  async save(user: UserDocument): Promise<UserDocument> {
+    return user.save();
+  }
+
+  toPublicUser(user: UserDocument | (User & { _id?: unknown })): Record<string, unknown> {
+    const plainUser = 'toObject' in user ? user.toObject() : user;
+
+    return {
+      id: String(plainUser._id),
+      name: plainUser.name,
+      email: plainUser.email,
+      role: plainUser.role,
+      provider: plainUser.provider,
+      avatarUrl: plainUser.avatarUrl || null,
+      emailVerified: plainUser.emailVerified,
+      isActive: plainUser.isActive,
+      createdBy: plainUser.createdBy || null,
+      lastLoginAt: plainUser.lastLoginAt || null,
+      createdAt: plainUser.createdAt || null,
+      updatedAt: plainUser.updatedAt || null,
+    };
   }
 }

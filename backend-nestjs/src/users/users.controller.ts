@@ -1,36 +1,41 @@
-import { Controller, Get, Post, Body, Param, Delete, UnauthorizedException, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiProperty } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
+import { AdminGuard } from '../auth/admin.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateUserDto as CreateUserPayloadDto } from './dto/create-user.dto';
 import { UsersService } from './users.service';
 
-class LoginDto {
-  @ApiProperty({ example: 'admin@gdash.io' }) email: string;
-  @ApiProperty({ example: '123456' }) password: string;
-}
-
-class CreateUserDto {
+class CreateUserApiDto {
   @ApiProperty({ example: 'User Name' }) name: string;
   @ApiProperty({ example: 'user@gdash.io' }) email: string;
-  @ApiProperty({ example: 'password123' }) password: string;
+  @ApiProperty({ example: 'user' }) role?: 'admin' | 'user';
+  @ApiProperty({ example: 'https://example.com/avatar.png', required: false }) avatarUrl?: string;
 }
 
 @ApiTags('Users')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, AdminGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Post('login')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Authenticate user' })
-  async login(@Body() loginDto: LoginDto) {
-    const user = await this.usersService.login(loginDto.email, loginDto.password);
-    if (!user) throw new UnauthorizedException('Invalid email or password');
-    return user;
-  }
-
   @Post()
   @ApiOperation({ summary: 'Create a new user' })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  create(
+    @Body() createUserDto: CreateUserPayloadDto,
+    @Req() req: Request & { user: { email: string } },
+  ) {
+    return this.usersService.create(createUserDto, req.user.email);
   }
 
   @Get()

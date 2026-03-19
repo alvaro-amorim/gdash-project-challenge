@@ -1,3 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+@layer base {
+  * {
+    @apply border-brand-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply font-sans text-brand-text antialiased;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, rgba(15, 159, 143, 0.16), transparent 28%),
+      radial-gradient(circle at top right, rgba(24, 107, 130, 0.12), transparent 24%),
+      linear-gradient(180deg, #f8fbfd 0%, #eef3f7 52%, #f7fafc 100%);
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  ::selection {
+    @apply bg-brand-primary/20 text-brand-dark;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply rounded-[28px] border border-white/80 bg-white/70 shadow-[0_30px_80px_-42px_rgba(15,23,42,0.4)] backdrop-blur-xl;
+  }
+
+  .metric-panel {
+    @apply glass-panel relative overflow-hidden;
+  }
+
+  .metric-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at top left, rgba(15, 159, 143, 0.10), transparent 34%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.92));
+    pointer-events: none;
+  }
+
+  .metric-panel > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .section-kicker {
+    @apply text-[0.72rem] font-bold uppercase tracking-[0.28em] text-brand-muted/90;
+  }
+
+  .field-shell {
+    @apply w-full rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm text-brand-text outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15;
+  }
+
+  .action-button {
+    @apply inline-flex items-center justify-center rounded-2xl px-4 py-3 text-sm font-bold transition;
+  }
+
+  .soft-divider {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-slate-300/70 to-transparent;
+  }
+}
+
+@layer utilities {
+  .soft-grid {
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+}

@@ -1,7 +1,6 @@
 import os
 import time
 import json
-import random
 import logging
 import requests
 import pika
@@ -29,13 +28,19 @@ WEATHER_API_PARAMS = (
 WEATHER_API_URL = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&{WEATHER_API_PARAMS}"
 
 RABBIT_HOST = os.getenv('RABBIT_HOST', 'localhost')
+API_HOST = os.getenv('API_HOST', 'localhost')
 RABBIT_QUEUE = 'weather_data'
 RABBIT_CREDENTIALS = pika.PlainCredentials('admin', 'password123')
+ACTIVE_USERS_URL = f'http://{API_HOST}:3000/analytics/active-users'
+AI_REFRESH_INTERVAL_SECONDS = 20 * 60
 
 GEMINI_KEY = os.getenv('GEMINI_API_KEY', '')
 
 active_model = None
-memory = {"last_insight": ""}
+memory = {
+    "last_insight": "",
+    "last_ai_generated_at": 0.0,
+}
 
 def setup_dynamic_model() -> Optional[genai.GenerativeModel]:
     if not GEMINI_KEY:
@@ -93,13 +98,13 @@ def generate_fallback_insight(current: Dict[str, Any]) -> str:
     
     return f"✅ Clima estável com {temp}°C. Condições agradáveis."
 
-def generate_ai_insight(current: Dict[str, Any], daily: Dict[str, Any]) -> str:
+def generate_ai_insight(current: Dict[str, Any], daily: Dict[str, Any]) -> tuple[str, bool]:
     global active_model
     
     if not active_model:
         active_model = setup_dynamic_model()
         if not active_model:
-            return generate_fallback_insight(current)
+            return generate_fallback_insight(current), False
 
     try:
         context = {
@@ -118,10 +123,12 @@ def generate_ai_insight(current: Dict[str, Any], daily: Dict[str, Any]) -> str:
             "Crie um insight criativo e útil sobre o clima agora. "
             "REGRAS OBRIGATÓRIAS: "
             "1. PROIBIDO apenas saudar (ex: 'Boa noite', 'Boa tarde'). "
-            "2. Você DEVE citar um dado específico (sensação, vento ou umidade) para justificar o conselho. "
-            "3. Se houver chuva, foque na segurança. "
-            "4. Use tom profissional mas próximo. Máximo 18 palavras. Comece com 1 emoji. "
-            f"5. Evite repetir esta frase anterior: '{memory['last_insight']}'"
+            "2. Priorize citar umidade, chuva ou vento. "
+            "3. Se citar sensação térmica, escreva explicitamente 'sensação térmica' para não confundir com a temperatura atual. "
+            "4. Nunca apresente a sensação térmica como se fosse a temperatura atual. "
+            "5. Se houver chuva, foque na segurança. "
+            "6. Use tom profissional mas próximo. Máximo 18 palavras. Comece com 1 emoji. "
+            f"7. Evite repetir esta frase anterior: '{memory['last_insight']}'"
         )
 
         response = active_model.generate_content(prompt)
@@ -129,16 +136,47 @@ def generate_ai_insight(current: Dict[str, Any], daily: Dict[str, Any]) -> str:
         if response.text:
             clean_text = response.text.strip().replace('"', '').replace('\n', '')
             if len(clean_text) < 10: 
-                return generate_fallback_insight(current)
+                return generate_fallback_insight(current), False
                 
             memory["last_insight"] = clean_text
-            return clean_text
+            memory["last_ai_generated_at"] = time.time()
+            return clean_text, True
         
-        return generate_fallback_insight(current)
+        return generate_fallback_insight(current), False
 
     except Exception as e:
         logger.error(f"⚠️ AI Generation Error: {e}. Using backup.")
-        return generate_fallback_insight(current)
+        return generate_fallback_insight(current), False
+
+def has_active_viewers() -> bool:
+    try:
+        response = requests.get(ACTIVE_USERS_URL, timeout=5)
+        response.raise_for_status()
+        active_users = int(response.json().get('activeUsers', 0))
+        return active_users > 0
+    except Exception as e:
+        logger.warning(f"Failed to read active users from backend: {e}")
+        return False
+
+def resolve_insight(
+    current: Dict[str, Any],
+    daily: Dict[str, Any],
+    active_viewers: bool,
+) -> tuple[str, str]:
+    if not active_viewers:
+        return generate_fallback_insight(current), "fallback"
+
+    last_ai_generated_at = memory.get("last_ai_generated_at", 0.0)
+    should_refresh_ai = (
+        last_ai_generated_at == 0.0 or
+        (time.time() - last_ai_generated_at) >= AI_REFRESH_INTERVAL_SECONDS
+    )
+
+    if not should_refresh_ai:
+        return generate_fallback_insight(current), "fallback"
+
+    insight_text, generated_by_ai = generate_ai_insight(current, daily)
+    return insight_text, ("ai" if generated_by_ai else "fallback")
 
 def get_weather() -> Optional[Dict[str, Any]]:
     try:
@@ -148,8 +186,9 @@ def get_weather() -> Optional[Dict[str, Any]]:
         
         current = data.get('current', {})
         daily = data.get('daily', {})
-        
-        insight_text = generate_ai_insight(current, daily)
+
+        active_viewers = has_active_viewers()
+        insight_text, insight_source = resolve_insight(current, daily, active_viewers)
 
         payload = {
             "latitude": LAT,
@@ -160,6 +199,8 @@ def get_weather() -> Optional[Dict[str, Any]]:
             "precipitation": current.get('precipitation'),
             "is_day": current.get('is_day'),
             "insight": insight_text,
+            "insight_source": insight_source,
+            "has_active_viewer": active_viewers,
             "collected_at": datetime.now().isoformat()
         }
         return payload
@@ -186,7 +227,7 @@ def send_to_queue(data: Dict[str, Any]):
             body=message
         )
         
-        source = "🤖 AI" if active_model else "💾 Backup"
+        source = "🤖 AI" if data.get("insight_source") == "ai" else "💾 Backup"
         logger.info(f"[{source}] {data['insight']}")
 
     except Exception as e:
@@ -200,7 +241,7 @@ def job():
     send_to_queue(data)
 
 if __name__ == "__main__":
-    logger.info(f"🚀 Smart Weather Collector Started! Target: {RABBIT_HOST}")
+    logger.info(f"🚀 Smart Weather Collector Started! Target: {RABBIT_HOST} | Presence API: {ACTIVE_USERS_URL}")
     job()
     schedule.every(20).seconds.do(job)
     while True:
