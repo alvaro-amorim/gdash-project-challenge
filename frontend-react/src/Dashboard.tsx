@@ -1,15 +1,18 @@
-import {
-  startTransition,
-  useDeferredValue,
-  useEffect,
-  useState,
-} from 'react';
+import { startTransition, useDeferredValue, useEffect, useState } from 'react';
 import dashboardLogo from './assets/logo.png';
 import { API_BASE_URL, requestApi } from './api';
+import { CitySearchInput } from './CitySearchInput';
 import { InsightSlider } from './InsightSlider';
 import { ProfilePanel } from './ProfilePanel';
 import { clearVisitSessionId, getVisitSessionId } from './storage';
-import type { AuthState, WeatherData } from './types';
+import type {
+  AuthState,
+  AuthUser,
+  CityOption,
+  LiveWeatherData,
+  WeatherHistoryPoint,
+  WeatherHistoryResponse,
+} from './types';
 import { WeatherChart } from './WeatherChart';
 
 interface DashboardProps {
@@ -18,35 +21,77 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
+type RangeFilter = '24h' | '7d' | '30d' | 'custom';
+
+const DEFAULT_LOCATION: CityOption = {
+  cityName: 'Juiz de Fora',
+  stateName: 'Minas Gerais',
+  stateCode: 'MG',
+  latitude: -21.7642,
+  longitude: -43.3503,
+  timezone: 'America/Sao_Paulo',
+  displayName: 'Juiz de Fora, MG, Brasil',
+};
+
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString();
+  return new Date(value).toLocaleString('pt-BR');
 }
 
-function getWeatherStatus(item: WeatherData) {
-  if (item.precipitation > 0) {
-    return 'Piso molhado';
+function buildLocationFromUser(user: AuthUser): CityOption {
+  if (
+    user.preferredCityName &&
+    user.preferredLatitude !== null &&
+    user.preferredLatitude !== undefined &&
+    user.preferredLongitude !== null &&
+    user.preferredLongitude !== undefined
+  ) {
+    return {
+      cityName: user.preferredCityName,
+      stateName: user.preferredStateName || null,
+      stateCode: user.preferredStateCode || null,
+      latitude: user.preferredLatitude,
+      longitude: user.preferredLongitude,
+      timezone: user.preferredTimezone || DEFAULT_LOCATION.timezone,
+      displayName: [
+        user.preferredCityName,
+        user.preferredStateCode || user.preferredStateName || 'Brasil',
+        'Brasil',
+      ]
+        .filter(Boolean)
+        .join(', '),
+    };
   }
 
-  if (item.temp >= 30) {
-    return 'Calor intenso';
-  }
+  return DEFAULT_LOCATION;
+}
 
-  if (item.temp >= 25) {
-    return 'Tempo quente';
-  }
-
-  if (item.temp <= 15) {
-    return 'Frente fria';
-  }
-
-  if (item.wind_speed > 20) {
-    return 'Vento forte';
-  }
-
+function getWeatherStatus(item: Pick<WeatherHistoryPoint, 'precipitation' | 'temp' | 'wind_speed'>) {
+  if (item.precipitation > 0) return 'Piso molhado';
+  if (item.temp >= 30) return 'Calor intenso';
+  if (item.temp >= 25) return 'Tempo quente';
+  if (item.temp <= 15) return 'Frente fria';
+  if (item.wind_speed > 20) return 'Vento forte';
   return 'Conforto estavel';
 }
 
-function FilterButton({
+function isLiveWeatherData(value: LiveWeatherData | WeatherHistoryPoint | null): value is LiveWeatherData {
+  return Boolean(value && 'insights' in value && Array.isArray(value.insights));
+}
+
+function filterHistory(points: WeatherHistoryPoint[], filter: Exclude<RangeFilter, 'custom'>) {
+  if (filter === '30d') return points;
+
+  const latestTimestamp = points.length
+    ? new Date(points[points.length - 1].collected_at).getTime()
+    : Date.now();
+  const windowMs = filter === '24h' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+
+  return points.filter(
+    (item) => new Date(item.collected_at).getTime() >= latestTimestamp - windowMs,
+  );
+}
+
+function RangeChip({
   active,
   label,
   onClick,
@@ -57,11 +102,12 @@ function FilterButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`rounded-2xl px-4 py-3 text-sm font-bold transition ${
+      className={`action-button min-w-[82px] rounded-full px-4 py-3 text-xs uppercase tracking-[0.22em] ${
         active
-          ? 'bg-brand-primary text-white shadow-[0_16px_38px_-18px_rgba(15,159,143,0.85)]'
-          : 'bg-white/80 text-brand-muted hover:bg-white hover:text-brand-dark'
+          ? 'bg-brand-primary text-white shadow-[0_18px_36px_-22px_rgba(12,168,154,0.85)]'
+          : 'border border-white/10 bg-white/5 text-white/75 hover:bg-white/10'
       }`}
     >
       {label}
@@ -69,70 +115,115 @@ function FilterButton({
   );
 }
 
-function MetricCard({
-  eyebrow,
-  value,
-  description,
-  tone,
-}: {
-  eyebrow: string;
-  value: string;
-  description: string;
-  tone: string;
-}) {
-  return (
-    <article className={`metric-panel p-5 ${tone}`}>
-      <p className="section-kicker mb-3">{eyebrow}</p>
-      <p className="font-display text-3xl font-bold text-brand-dark">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-brand-muted">{description}</p>
-    </article>
-  );
-}
-
 export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
-  const [weatherList, setWeatherList] = useState<WeatherData[]>([]);
-  const [latest, setLatest] = useState<WeatherData | null>(null);
-  const [limit, setLimit] = useState(45);
+  const [selectedLocation, setSelectedLocation] = useState<CityOption>(() =>
+    buildLocationFromUser(auth.user),
+  );
+  const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null);
+  const [historyBase, setHistoryBase] = useState<WeatherHistoryPoint[]>([]);
+  const [historyData, setHistoryData] = useState<WeatherHistoryPoint[]>([]);
+  const [rangeFilter, setRangeFilter] = useState<RangeFilter>('30d');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [isCustomFilter, setIsCustomFilter] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const deferredWeatherList = useDeferredValue(weatherList);
+  const [loadingLive, setLoadingLive] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [savingCity, setSavingCity] = useState(false);
+  const [cityMessage, setCityMessage] = useState('');
+  const [dataError, setDataError] = useState('');
+  const deferredHistoryData = useDeferredValue(historyData);
 
-  const fetchData = async () => {
-    let url = `${API_BASE_URL}/weather?limit=${limit}`;
+  const locationParams = new URLSearchParams({
+    latitude: String(selectedLocation.latitude),
+    longitude: String(selectedLocation.longitude),
+    cityName: selectedLocation.cityName,
+    timezone: selectedLocation.timezone,
+  });
 
-    if (isCustomFilter && startDate && endDate) {
-      url = `${API_BASE_URL}/weather?start=${startDate}:00&end=${endDate}:59&limit=0`;
-    }
+  if (selectedLocation.stateName) locationParams.set('stateName', selectedLocation.stateName);
+  if (selectedLocation.stateCode) locationParams.set('stateCode', selectedLocation.stateCode);
 
-    try {
-      const response = await fetch(url);
-      const data = (await response.json()) as WeatherData[];
+  const locationQuery = locationParams.toString();
+  const latestReading = liveWeather || deferredHistoryData[deferredHistoryData.length - 1] || null;
+  const exportParams = new URLSearchParams(locationQuery);
+  const exportStart = deferredHistoryData[0]?.collected_at?.slice(0, 10);
+  const exportEnd = deferredHistoryData[deferredHistoryData.length - 1]?.collected_at?.slice(0, 10);
 
-      startTransition(() => {
-        setWeatherList(data);
-        setLatest(data.length > 0 ? data[0] : null);
-      });
-    } catch (requestError) {
-      console.error('Error fetching data:', requestError);
-    }
-  };
+  if (exportStart) exportParams.set('startDate', exportStart);
+  if (exportEnd) exportParams.set('endDate', exportEnd);
+
+  const exportQuery = exportParams.toString();
+  const timelineRows = [...deferredHistoryData].slice(-18).reverse();
+  const temperatures = deferredHistoryData.map((item) => item.temp);
+  const humidities = deferredHistoryData.map((item) => item.humidity);
+  const winds = deferredHistoryData.map((item) => item.wind_speed);
+  const rainPoints = deferredHistoryData.map((item) => item.precipitation);
+  const avgTemp = temperatures.length
+    ? temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length
+    : 0;
+  const peakHumidity = humidities.length ? Math.max(...humidities) : 0;
+  const peakWind = winds.length ? Math.max(...winds) : 0;
+  const totalRain = rainPoints.length ? rainPoints.reduce((sum, value) => sum + value, 0) : 0;
+  const rainyMoments = rainPoints.filter((value) => value > 0).length;
 
   useEffect(() => {
-    fetchData().catch(() => undefined);
-    const interval = setInterval(() => {
-      if (!isCustomFilter) {
-        fetchData().catch(() => undefined);
+    setSelectedLocation(buildLocationFromUser(auth.user));
+  }, [auth.user]);
+
+  useEffect(() => {
+    const fetchLiveWeather = async () => {
+      setLoadingLive(true);
+      setDataError('');
+      try {
+        const response = await requestApi<LiveWeatherData>(`/weather/live?${locationQuery}`, {}, auth.token);
+        setLiveWeather(response);
+      } catch (requestError) {
+        console.error(requestError);
+        setDataError('Nao foi possivel carregar a leitura atual desta cidade.');
+      } finally {
+        setLoadingLive(false);
       }
-    }, 5000);
+    };
+
+    fetchLiveWeather().catch(() => undefined);
+    const interval = setInterval(() => {
+      fetchLiveWeather().catch(() => undefined);
+    }, 60000);
 
     return () => clearInterval(interval);
-  }, [limit, isCustomFilter, startDate, endDate]);
+  }, [auth.token, locationQuery]);
+
+  useEffect(() => {
+    const fetchDefaultHistory = async () => {
+      setLoadingHistory(true);
+      setDataError('');
+      try {
+        const response = await requestApi<WeatherHistoryResponse>(
+          `/weather/history?${locationQuery}&days=30`,
+          {},
+          auth.token,
+        );
+
+        startTransition(() => {
+          setHistoryBase(response.points);
+          setHistoryData(response.points);
+          setRangeFilter('30d');
+          setStartDate('');
+          setEndDate('');
+        });
+      } catch (requestError) {
+        console.error(requestError);
+        setDataError('Nao foi possivel carregar o historico da cidade selecionada.');
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    fetchDefaultHistory().catch(() => undefined);
+  }, [auth.token, locationQuery]);
 
   useEffect(() => {
     const sessionId = getVisitSessionId();
-
     const sendPresence = async (mode: 'start' | 'heartbeat' | 'end') => {
       try {
         await requestApi(
@@ -152,57 +243,78 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
     };
 
     sendPresence('start').catch(() => undefined);
-
     const interval = setInterval(() => {
       sendPresence('heartbeat').catch(() => undefined);
     }, 30000);
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        sendPresence('heartbeat').catch(() => undefined);
-      }
-    };
-
-    const handleBeforeUnload = () => {
-      fetch(`${API_BASE_URL}/analytics/visits/end`, {
-        method: 'POST',
-        keepalive: true,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${auth.token}`,
-        },
-        body: JSON.stringify({
-          sessionId,
-          path: showProfile ? '/profile' : '/dashboard',
-        }),
-      }).catch(() => undefined);
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       sendPresence('end').catch(() => undefined);
     };
   }, [auth.token, showProfile]);
 
-  const handleQuickFilter = (value: number) => {
-    setIsCustomFilter(false);
-    setLimit(value);
+  const handleQuickFilter = (value: Exclude<RangeFilter, 'custom'>) => {
+    setRangeFilter(value);
     setStartDate('');
     setEndDate('');
+    startTransition(() => {
+      setHistoryData(filterHistory(historyBase, value));
+    });
   };
 
-  const handleDateFilter = () => {
-    if (!startDate || !endDate) {
-      return;
-    }
+  const handleDateFilter = async () => {
+    if (!startDate || !endDate) return;
 
-    setIsCustomFilter(true);
-    fetchData().catch(() => undefined);
+    setLoadingHistory(true);
+    setDataError('');
+
+    try {
+      const params = new URLSearchParams(locationQuery);
+      params.set('startDate', startDate);
+      params.set('endDate', endDate);
+      const response = await requestApi<WeatherHistoryResponse>(`/weather/history?${params.toString()}`, {}, auth.token);
+      startTransition(() => {
+        setRangeFilter('custom');
+        setHistoryData(response.points);
+      });
+    } catch (requestError) {
+      console.error(requestError);
+      setDataError('Nao foi possivel buscar o recorte solicitado.');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleCitySelect = async (city: CityOption) => {
+    setSelectedLocation(city);
+    setSavingCity(true);
+    setCityMessage('Salvando cidade no seu perfil...');
+
+    try {
+      const updatedUser = await requestApi<AuthUser>(
+        '/auth/me',
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            preferredCityName: city.cityName,
+            preferredStateName: city.stateName,
+            preferredStateCode: city.stateCode,
+            preferredLatitude: city.latitude,
+            preferredLongitude: city.longitude,
+            preferredTimezone: city.timezone,
+          }),
+        },
+        auth.token,
+      );
+
+      onAuthChange({ ...auth, user: updatedUser });
+      setCityMessage('Cidade salva. O painel agora acompanha esse municipio automaticamente.');
+    } catch (requestError) {
+      console.error(requestError);
+      setCityMessage('Nao foi possivel salvar a cidade no perfil, mas o painel foi atualizado localmente.');
+    } finally {
+      setSavingCity(false);
+    }
   };
 
   const handleLogoutClick = async () => {
@@ -227,316 +339,420 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
   };
 
   return (
-    <div className="min-h-screen px-4 pb-10 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1500px] space-y-6">
-        <section className="grid gap-4 xl:grid-cols-[1.05fr_1.95fr]">
-          <div className="glass-panel soft-grid overflow-hidden p-6 sm:p-8">
-            <div className="mb-8 flex items-start justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/80">
-                  <img src={dashboardLogo} alt="GDASH Logo" className="h-9 w-9 object-contain" />
-                </div>
-                <div>
-                  <p className="section-kicker mb-2">GDASH Control Center</p>
-                  <h1 className="font-display text-3xl font-bold text-brand-dark sm:text-4xl">
-                    Weather Analytics
-                  </h1>
-                </div>
-              </div>
+    <div className="min-h-screen px-4 pb-8 pt-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1600px] space-y-6">
+        <section className="grid gap-6 xl:grid-cols-[310px_minmax(0,1fr)]">
+          <aside className="glass-panel-dark relative overflow-hidden p-6 sm:p-7">
+            <div className="soft-grid absolute inset-0 opacity-30" />
+            <div className="absolute -right-20 top-8 h-40 w-40 rounded-full bg-brand-primary/20 blur-3xl" />
+            <div className="absolute -bottom-16 left-8 h-36 w-36 rounded-full bg-brand-accent/15 blur-3xl" />
 
-              <span className="rounded-full border border-brand-primary/15 bg-brand-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-secondary">
-                online
-              </span>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <p className="text-sm font-semibold text-brand-dark">{auth.user.name}</p>
-                <p className="mt-1 text-sm text-brand-muted">{auth.user.email}</p>
-              </div>
-              <div className="text-sm leading-6 text-brand-muted sm:text-right">
-                Coleta em tempo quase real, IA em janelas de 20 minutos e fallback entre ciclos.
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-panel overflow-hidden p-4 sm:p-5">
-            <div className="grid gap-4 lg:grid-cols-[auto_1fr_auto] lg:items-end">
-              <div className="overflow-x-auto pb-1">
-                <div className="flex min-w-max gap-2">
-                  <FilterButton active={!isCustomFilter && limit === 45} label="15m" onClick={() => handleQuickFilter(45)} />
-                  <FilterButton active={!isCustomFilter && limit === 180} label="1h" onClick={() => handleQuickFilter(180)} />
-                  <FilterButton active={!isCustomFilter && limit === 1080} label="6h" onClick={() => handleQuickFilter(1080)} />
-                  <FilterButton active={!isCustomFilter && limit === 0} label="Todos" onClick={() => handleQuickFilter(0)} />
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-center">
-                <input
-                  type="datetime-local"
-                  className="field-shell min-w-0"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-                <span className="hidden text-center text-sm font-semibold text-brand-muted sm:block">
-                  ate
-                </span>
-                <input
-                  type="datetime-local"
-                  className="field-shell min-w-0"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-                <button
-                  onClick={handleDateFilter}
-                  className={`action-button rounded-2xl px-5 py-3 ${
-                    isCustomFilter
-                      ? 'bg-brand-secondary text-white'
-                      : 'bg-slate-100 text-brand-muted hover:bg-slate-200'
-                  }`}
-                >
-                  Buscar
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <a
-                  href={`${API_BASE_URL}/weather/export/csv`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="action-button rounded-2xl border border-slate-200 bg-white text-brand-muted hover:bg-slate-50"
-                >
-                  CSV
-                </a>
-                <a
-                  href={`${API_BASE_URL}/weather/export/xlsx`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="action-button rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                >
-                  Excel
-                </a>
-                <button
-                  onClick={() => setShowProfile((previousValue) => !previousValue)}
-                  className="action-button rounded-2xl border border-slate-200 bg-white text-brand-dark hover:bg-slate-50"
-                >
-                  {showProfile ? 'Fechar Perfil' : 'Meu Perfil'}
-                </button>
-                <button
-                  onClick={handleLogoutClick}
-                  className="action-button rounded-2xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
-                >
-                  Sair
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {showProfile ? <ProfilePanel auth={auth} onAuthChange={onAuthChange} /> : null}
-
-        {latest ? (
-          <>
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard
-                eyebrow="Temperatura"
-                value={`${latest.temp.toFixed(1)}°C`}
-                description={latest.is_day === 1 ? 'Leitura atual durante o periodo diurno.' : 'Leitura atual durante o periodo noturno.'}
-                tone="bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.12),transparent_35%)]"
-              />
-              <MetricCard
-                eyebrow="Umidade"
-                value={`${latest.humidity}%`}
-                description="Indicador importante para conforto, visibilidade e percepcao termica."
-                tone="bg-[radial-gradient(circle_at_top_left,rgba(15,159,143,0.12),transparent_35%)]"
-              />
-              <MetricCard
-                eyebrow="Vento"
-                value={`${latest.wind_speed.toFixed(1)} km/h`}
-                description="Util para avaliar dispersao, sensacao termica e risco operacional."
-                tone="bg-[radial-gradient(circle_at_top_left,rgba(124,108,255,0.12),transparent_35%)]"
-              />
-              <MetricCard
-                eyebrow="Chuva"
-                value={`${latest.precipitation.toFixed(1)} mm`}
-                description={latest.precipitation > 0 ? 'Ha precipitacao registrada no momento.' : 'Sem chuva relevante no ultimo ciclo.'}
-                tone="bg-[radial-gradient(circle_at_top_left,rgba(24,107,130,0.12),transparent_35%)]"
-              />
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-[1.55fr_1fr]">
-              <article
-                className={`glass-panel relative overflow-hidden p-6 sm:p-8 ${
-                  latest.is_day === 1
-                    ? 'bg-[linear-gradient(135deg,rgba(46,119,227,0.96),rgba(106,176,255,0.92))] text-white'
-                    : 'bg-[linear-gradient(135deg,rgba(30,41,94,0.96),rgba(93,63,211,0.92))] text-white'
-                }`}
-              >
-                <div className="absolute inset-0 opacity-30">
-                  <div className="soft-grid h-full w-full" />
-                </div>
-                <div className="relative z-10">
-                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[0.72rem] font-bold uppercase tracking-[0.28em] text-white/70">
-                        {isCustomFilter
-                          ? 'Analise Historica'
-                          : latest.is_day === 1
-                            ? 'Insights para o Dia'
-                            : 'Insights para a Noite'}
-                      </p>
-                      <h2 className="mt-3 font-display text-2xl font-bold sm:text-3xl">
-                        Leitura assistida para decisao rapida.
-                      </h2>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em]">
-                        {latest.insight_source === 'ai' ? 'Insight IA' : 'Fallback local'}
-                      </span>
-                      <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em]">
-                        {latest.has_active_viewer ? 'Viewer ativo' : 'Sem viewer ativo'}
-                      </span>
-                    </div>
+            <div className="relative z-10 space-y-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[22px] border border-white/12 bg-white/10 shadow-[0_16px_40px_-20px_rgba(12,24,40,0.7)]">
+                    <img src={dashboardLogo} alt="GDASH Logo" className="h-9 w-9 object-contain" />
                   </div>
-
-                  <InsightSlider text={latest.insight || 'Processando dados meteorologicos...'} />
-                </div>
-              </article>
-
-              <article className="metric-panel p-6 sm:p-7">
-                <p className="section-kicker mb-3">Contexto atual</p>
-                <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="font-display text-6xl font-bold leading-none text-brand-dark">
-                      {latest.temp.toFixed(1)}°
-                    </p>
-                    <p className="mt-3 text-sm text-brand-muted">Juiz de Fora, MG</p>
+                    <p className="section-kicker text-white/60">Climate control deck</p>
+                    <h1 className="mt-2 font-display text-3xl font-bold text-white">GDASH</h1>
                   </div>
-                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    {latest.is_day === 1 ? 'Periodo diurno' : 'Periodo noturno'}
+                </div>
+                <span className="status-pill border-emerald-400/18 bg-emerald-400/10 text-emerald-100">
+                  <span className="halo-dot" />
+                  online
+                </span>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-white/10 p-5">
+                <p className="text-xs uppercase tracking-[0.24em] text-white/50">Operador</p>
+                <p className="mt-3 text-lg font-semibold text-white">{auth.user.name}</p>
+                <p className="mt-1 text-sm text-white/60">{auth.user.email}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="status-pill border-white/10 bg-white/10 text-white/70">
+                    {auth.user.role === 'admin' ? 'admin' : 'usuario'}
+                  </span>
+                  <span className="status-pill border-white/10 bg-white/10 text-white/70">
+                    {auth.user.emailVerified ? 'verificado' : 'pendente'}
                   </span>
                 </div>
+              </div>
 
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  {[
-                    ['Status operacional', getWeatherStatus(latest)],
-                    ['Umidade', `${latest.humidity}%`],
-                    ['Vento', `${latest.wind_speed.toFixed(1)} km/h`],
-                    ['Precipitacao', `${latest.precipitation.toFixed(1)} mm`],
-                  ].map(([label, value]) => (
-                    <div key={label} className="rounded-2xl border border-slate-200/80 bg-white/75 px-4 py-4">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-muted">
-                        {label}
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-brand-dark">{value}</p>
-                    </div>
-                  ))}
+              <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))] p-5">
+                <p className="section-kicker text-white/55">Cidade principal</p>
+                <p className="mt-3 text-xl font-semibold text-white">{selectedLocation.cityName}</p>
+                <p className="mt-1 text-sm text-white/60">
+                  {selectedLocation.stateCode || selectedLocation.stateName || 'Brasil'}
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-[24px] border border-white/10 bg-white/5 px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/50">Coleta</p>
+                    <p className="mt-3 text-base font-semibold text-white">30 dias</p>
+                  </div>
+                  <div className="rounded-[24px] border border-white/10 bg-white/5 px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/50">Janela IA</p>
+                    <p className="mt-3 text-base font-semibold text-white">20 min</p>
+                  </div>
                 </div>
-              </article>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowProfile((previousValue) => !previousValue)}
+                  className="dark-button w-full justify-between rounded-[22px] px-5 py-4"
+                >
+                  <span>{showProfile ? 'Fechar perfil' : 'Abrir perfil'}</span>
+                  <span className="text-white/45">{showProfile ? 'close' : 'open'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogoutClick}
+                  className="dark-button w-full justify-between rounded-[22px] border-rose-400/20 bg-rose-400/10 px-5 py-4 text-rose-50 hover:bg-rose-400/15"
+                >
+                  <span>Sair da sessao</span>
+                  <span className="text-rose-100/60">exit</span>
+                </button>
+              </div>
+
+              {cityMessage ? (
+                <div className="rounded-[24px] border border-white/10 bg-white/10 px-4 py-4 text-sm leading-6 text-white/70">
+                  {cityMessage}
+                </div>
+              ) : null}
+
+              {dataError ? (
+                <div className="rounded-[24px] border border-rose-300/20 bg-rose-400/10 px-4 py-4 text-sm leading-6 text-rose-50">
+                  {dataError}
+                </div>
+              ) : null}
+            </div>
+          </aside>
+
+          <div className="space-y-6">
+            <section className="glass-panel-dark relative overflow-hidden p-5 sm:p-6">
+              <div className="soft-grid absolute inset-0 opacity-20" />
+              <div className="relative z-10 space-y-5">
+                <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
+                  <div>
+                    <p className="section-kicker text-white/55">Command filters</p>
+                    <h2 className="mt-3 font-display text-3xl font-bold text-white">
+                      Escolha a cidade e mude a leitura do painel em tempo real.
+                    </h2>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <RangeChip active={rangeFilter === '24h'} label="24h" onClick={() => handleQuickFilter('24h')} />
+                    <RangeChip active={rangeFilter === '7d'} label="7d" onClick={() => handleQuickFilter('7d')} />
+                    <RangeChip active={rangeFilter === '30d'} label="30d" onClick={() => handleQuickFilter('30d')} />
+                  </div>
+                </div>
+
+                <div className="grid gap-3 xl:grid-cols-[1.25fr_0.85fr_0.85fr_auto_auto_auto]">
+                  <CitySearchInput
+                    selectedLabel={selectedLocation.displayName}
+                    onSelect={handleCitySelect}
+                    disabled={savingCity}
+                  />
+                  <input
+                    type="date"
+                    className="field-shell min-w-0"
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                  />
+                  <input
+                    type="date"
+                    className="field-shell min-w-0"
+                    value={endDate}
+                    onChange={(event) => setEndDate(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleDateFilter}
+                    className={`primary-button rounded-[22px] px-5 py-3.5 ${
+                      rangeFilter === 'custom' ? 'bg-brand-secondary hover:bg-brand-secondary' : ''
+                    }`}
+                  >
+                    Buscar
+                  </button>
+                  <a
+                    href={`${API_BASE_URL}/weather/export/csv?${exportQuery}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="secondary-button rounded-[22px] px-5 py-3.5"
+                  >
+                    CSV
+                  </a>
+                  <a
+                    href={`${API_BASE_URL}/weather/export/xlsx?${exportQuery}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="secondary-button rounded-[22px] px-5 py-3.5"
+                  >
+                    Excel
+                  </a>
+                </div>
+              </div>
             </section>
-          </>
-        ) : null}
 
-        {deferredWeatherList.length > 0 ? (
-          <WeatherChart data={deferredWeatherList} />
-        ) : (
-          <div className="glass-panel flex h-48 items-center justify-center text-sm text-brand-muted">
-            Sem dados suficientes para montar o grafico neste periodo.
-          </div>
-        )}
+            {showProfile ? <ProfilePanel auth={auth} onAuthChange={onAuthChange} /> : null}
 
-        <section className="glass-panel overflow-hidden">
-          <div className="flex flex-col gap-4 border-b border-slate-200/80 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-7">
-            <div>
-              <p className="section-kicker mb-2">Auditoria operacional</p>
-              <h3 className="font-display text-2xl font-bold text-brand-dark">Registros detalhados</h3>
-            </div>
-            <span className="self-start rounded-full border border-slate-200 bg-white/85 px-3 py-1 text-xs font-semibold text-brand-muted">
-              {deferredWeatherList.length} logs carregados
-            </span>
-          </div>
+            {latestReading ? (
+              <>
+                <section className="grid gap-6 2xl:grid-cols-[minmax(0,1.55fr)_360px]">
+                  <article className="glass-panel-dark relative overflow-hidden p-6 sm:p-8">
+                    <div className="absolute -left-16 top-16 h-44 w-44 rounded-full bg-brand-primary/20 blur-3xl" />
+                    <div className="absolute bottom-0 right-0 h-52 w-52 rounded-full bg-brand-accent/16 blur-3xl" />
+                    <div className="soft-grid absolute inset-0 opacity-20" />
 
-          <div className="md:hidden">
-            <div className="space-y-3 p-4">
-              {deferredWeatherList.map((item) => (
-                <article key={item._id} className="metric-panel p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-brand-dark">{formatDateTime(item.collected_at)}</p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-brand-muted">
-                        {item.insight_source === 'ai' ? 'IA' : 'Fallback'}
-                      </p>
+                    <div className="relative z-10">
+                      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <p className="section-kicker text-white/55">
+                            {rangeFilter === 'custom' ? 'Briefing do periodo' : 'AI climate briefing'}
+                          </p>
+                          <h2 className="mt-3 max-w-2xl font-display text-3xl font-bold text-white sm:text-[2.65rem] sm:leading-[1.05]">
+                            O painel agora conversa com a cidade escolhida, nao com um clima generico.
+                          </h2>
+                        </div>
+
+                        <div className="grid gap-2 text-right text-sm text-white/70">
+                          <span>Atualizado em {formatDateTime(latestReading.collected_at)}</span>
+                          <span>
+                            {isLiveWeatherData(latestReading) && latestReading.ai_generated_at
+                              ? `Pacote IA em ${formatDateTime(latestReading.ai_generated_at)}`
+                              : 'Leitura local sincronizada'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-8 grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+                        <div className="rounded-[28px] border border-white/10 bg-white/10 p-5">
+                          <p className="text-xs uppercase tracking-[0.24em] text-white/50">Agora em</p>
+                          <p className="mt-3 font-display text-6xl font-bold text-white">
+                            {latestReading.temp.toFixed(1)}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2 text-white/70">
+                            <span className="text-xl">C</span>
+                            <span>{selectedLocation.displayName}</span>
+                          </div>
+                          <div className="mt-6 flex flex-wrap gap-2">
+                            <span className="status-pill border-white/10 bg-white/10 text-white/70">
+                              {latestReading.is_day === 1 ? 'periodo diurno' : 'periodo noturno'}
+                            </span>
+                            <span className="status-pill border-white/10 bg-white/10 text-white/70">
+                              {getWeatherStatus(latestReading)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[30px] border border-white/10 bg-white/10 p-6">
+                          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.22em] text-white/50">
+                                Insights em rotacao
+                              </p>
+                              <p className="mt-2 text-sm text-white/70">
+                                Tres leituras alternadas para evitar cards estaticos e repetitivos.
+                              </p>
+                            </div>
+
+                            {isLiveWeatherData(latestReading) ? (
+                              <div className="flex flex-wrap gap-2">
+                                <span className="status-pill border-white/10 bg-white/10 text-white/70">
+                                  {latestReading.insight_source === 'ai' ? 'pacote IA' : 'fallback local'}
+                                </span>
+                                <span className="status-pill border-white/10 bg-white/10 text-white/70">
+                                  {latestReading.has_active_viewer ? 'usuario ativo' : 'sem usuario ativo'}
+                                </span>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <InsightSlider
+                            insights={
+                              isLiveWeatherData(latestReading)
+                                ? latestReading.insights
+                                : ['Historico carregado para o periodo selecionado.']
+                            }
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-brand-muted">
-                      {item.is_day === 1 ? 'Dia' : 'Noite'}
-                    </span>
+                  </article>
+
+                  <div className="space-y-4">
+                    <article className="glass-panel p-6">
+                      <p className="section-kicker mb-3">Signal board</p>
+                      <h3 className="font-display text-2xl font-bold text-brand-dark">Leitura operacional</h3>
+                      <div className="mt-5 space-y-3">
+                        {[
+                          ['Status atual', getWeatherStatus(latestReading)],
+                          ['Umidade', `${latestReading.humidity.toFixed(0)}%`],
+                          ['Vento', `${latestReading.wind_speed.toFixed(1)} km/h`],
+                          ['Precipitacao', `${latestReading.precipitation.toFixed(1)} mm`],
+                        ].map(([label, value]) => (
+                          <div
+                            key={label}
+                            className="flex items-center justify-between rounded-[22px] border border-slate-200/75 bg-white/70 px-4 py-4"
+                          >
+                            <span className="text-xs font-bold uppercase tracking-[0.22em] text-brand-muted">
+                              {label}
+                            </span>
+                            <span className="text-sm font-semibold text-brand-dark">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+
+                    <article className="glass-panel p-6">
+                      <p className="section-kicker mb-3">Periodo atual</p>
+                      <h3 className="font-display text-2xl font-bold text-brand-dark">Resumo do recorte</h3>
+                      <div className="mt-5 grid grid-cols-2 gap-3">
+                        {[
+                          ['Registros', `${deferredHistoryData.length}`],
+                          ['Pico de umidade', `${peakHumidity.toFixed(0)}%`],
+                          ['Pico de vento', `${peakWind.toFixed(1)} km/h`],
+                          ['Chuva acumulada', `${totalRain.toFixed(1)} mm`],
+                        ].map(([label, value]) => (
+                          <div key={label} className="rounded-[22px] border border-slate-200/75 bg-white/70 px-4 py-4">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-muted">
+                              {label}
+                            </p>
+                            <p className="mt-3 font-display text-2xl font-bold text-brand-dark">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
                   </div>
+                </section>
 
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-brand-muted">Temperatura</p>
-                      <p className="font-semibold text-brand-dark">{item.temp.toFixed(1)}°C</p>
-                    </div>
-                    <div>
-                      <p className="text-brand-muted">Umidade</p>
-                      <p className="font-semibold text-brand-dark">{item.humidity}%</p>
-                    </div>
-                    <div>
-                      <p className="text-brand-muted">Vento</p>
-                      <p className="font-semibold text-brand-dark">{item.wind_speed.toFixed(1)} km/h</p>
-                    </div>
-                    <div>
-                      <p className="text-brand-muted">Chuva</p>
-                      <p className="font-semibold text-brand-dark">{item.precipitation.toFixed(1)} mm</p>
-                    </div>
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="metric-panel overflow-hidden p-5">
+                    <div className="absolute inset-x-5 top-0 h-1 rounded-b-full bg-[linear-gradient(90deg,#f08a32,#ffb36a)]" />
+                    <p className="section-kicker mb-3">Temperatura media</p>
+                    <p className="font-display text-3xl font-bold text-brand-dark">{avgTemp.toFixed(1)} C</p>
+                    <p className="mt-3 text-sm leading-6 text-brand-muted">
+                      Media do periodo exibido para comparar o agora com a tendencia recente.
+                    </p>
                   </div>
-
-                  <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/80 p-4 text-sm leading-6 text-brand-muted">
-                    {item.insight || '-'}
+                  <div className="metric-panel overflow-hidden p-5">
+                    <div className="absolute inset-x-5 top-0 h-1 rounded-b-full bg-[linear-gradient(90deg,#0ca89a,#61d0bf)]" />
+                    <p className="section-kicker mb-3">Momentos de chuva</p>
+                    <p className="font-display text-3xl font-bold text-brand-dark">{rainyMoments}</p>
+                    <p className="mt-3 text-sm leading-6 text-brand-muted">
+                      Quantidade de registros com precipitacao acima de zero no recorte atual.
+                    </p>
                   </div>
-                </article>
-              ))}
-            </div>
-          </div>
+                  <div className="metric-panel overflow-hidden p-5">
+                    <div className="absolute inset-x-5 top-0 h-1 rounded-b-full bg-[linear-gradient(90deg,#153a59,#2873a6)]" />
+                    <p className="section-kicker mb-3">Cidade ativa</p>
+                    <p className="font-display text-3xl font-bold text-brand-dark">{selectedLocation.cityName}</p>
+                    <p className="mt-3 text-sm leading-6 text-brand-muted">
+                      Cada login carrega os ultimos 30 dias da cidade salva no seu perfil.
+                    </p>
+                  </div>
+                  <div className="metric-panel overflow-hidden p-5">
+                    <div className="absolute inset-x-5 top-0 h-1 rounded-b-full bg-[linear-gradient(90deg,#705cf6,#9d94ff)]" />
+                    <p className="section-kicker mb-3">Pico de vento</p>
+                    <p className="font-display text-3xl font-bold text-brand-dark">{peakWind.toFixed(1)} km/h</p>
+                    <p className="mt-3 text-sm leading-6 text-brand-muted">
+                      Valor maximo observado no recorte atual para leitura rapida de risco.
+                    </p>
+                  </div>
+                </section>
+              </>
+            ) : null}
 
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[880px] border-collapse">
-              <thead className="bg-slate-50/85 text-left text-[11px] font-bold uppercase tracking-[0.24em] text-brand-muted">
-                <tr>
-                  <th className="px-6 py-4">Horario</th>
-                  <th className="px-6 py-4">Temperatura</th>
-                  <th className="px-6 py-4">Umidade</th>
-                  <th className="px-6 py-4">Vento</th>
-                  <th className="px-6 py-4">Chuva</th>
-                  <th className="px-6 py-4">Origem</th>
-                  <th className="px-6 py-4">Insight</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm text-brand-muted">
-                {deferredWeatherList.map((item) => (
-                  <tr key={item._id} className="transition hover:bg-white/75">
-                    <td className="px-6 py-4 font-mono text-xs">{formatDateTime(item.collected_at)}</td>
-                    <td className="px-6 py-4 font-semibold text-brand-dark">{item.temp.toFixed(1)}°C</td>
-                    <td className="px-6 py-4">{item.humidity}%</td>
-                    <td className="px-6 py-4">{item.wind_speed.toFixed(1)} km/h</td>
-                    <td className="px-6 py-4">{item.precipitation.toFixed(1)} mm</td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] ${
-                          item.insight_source === 'ai'
-                            ? 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100'
-                            : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
-                        }`}
-                      >
-                        {item.insight_source === 'ai' ? 'IA' : 'Fallback'}
+            <WeatherChart
+              data={deferredHistoryData}
+              cityLabel={selectedLocation.displayName}
+              loading={loadingHistory || loadingLive}
+            />
+
+            <section className="glass-panel overflow-hidden">
+              <div className="flex flex-col gap-4 border-b border-slate-200/80 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-7">
+                <div>
+                  <p className="section-kicker mb-2">Recent timeline</p>
+                  <h3 className="font-display text-2xl font-bold text-brand-dark">
+                    Momentos mais recentes do periodo filtrado
+                  </h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-brand-muted">
+                    Em vez de uma tabela seca, o bloco abaixo destaca os sinais mais recentes para leitura rapida.
+                  </p>
+                </div>
+                <span className="status-pill self-start border-slate-200 bg-white/85 text-brand-muted">
+                  {timelineRows.length} amostras
+                </span>
+              </div>
+
+              <div className="grid gap-4 p-4 lg:hidden">
+                {timelineRows.map((item) => (
+                  <article key={item.collected_at} className="metric-panel p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-brand-dark">{formatDateTime(item.collected_at)}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.18em] text-brand-muted">
+                          {item.is_day === 1 ? 'Dia' : 'Noite'}
+                        </p>
+                      </div>
+                      <span className="status-pill border-slate-200 bg-white/80 text-brand-muted">
+                        {getWeatherStatus(item)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 leading-6">{item.insight || '-'}</td>
-                  </tr>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-2 gap-3">
+                      {[
+                        ['Temperatura', `${item.temp.toFixed(1)} C`],
+                        ['Umidade', `${item.humidity.toFixed(0)}%`],
+                        ['Vento', `${item.wind_speed.toFixed(1)} km/h`],
+                        ['Chuva', `${item.precipitation.toFixed(1)} mm`],
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-[20px] border border-slate-200/70 bg-white/75 px-4 py-3">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-muted">
+                            {label}
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-brand-dark">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[880px] border-collapse">
+                  <thead className="bg-[#f2ede5]/85 text-left text-[11px] font-bold uppercase tracking-[0.24em] text-brand-muted">
+                    <tr>
+                      <th className="px-6 py-4">Horario</th>
+                      <th className="px-6 py-4">Temperatura</th>
+                      <th className="px-6 py-4">Umidade</th>
+                      <th className="px-6 py-4">Vento</th>
+                      <th className="px-6 py-4">Chuva</th>
+                      <th className="px-6 py-4">Periodo</th>
+                      <th className="px-6 py-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm text-brand-muted">
+                    {timelineRows.map((item) => (
+                      <tr key={item.collected_at} className="transition hover:bg-white/75">
+                        <td className="px-6 py-4 font-mono text-xs">{formatDateTime(item.collected_at)}</td>
+                        <td className="px-6 py-4 font-semibold text-brand-dark">{item.temp.toFixed(1)} C</td>
+                        <td className="px-6 py-4">{item.humidity.toFixed(0)}%</td>
+                        <td className="px-6 py-4">{item.wind_speed.toFixed(1)} km/h</td>
+                        <td className="px-6 py-4">{item.precipitation.toFixed(1)} mm</td>
+                        <td className="px-6 py-4">{item.is_day === 1 ? 'Dia' : 'Noite'}</td>
+                        <td className="px-6 py-4">
+                          <span className="status-pill border-slate-200 bg-white/80 text-brand-muted">
+                            {getWeatherStatus(item)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
         </section>
       </div>

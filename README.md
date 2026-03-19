@@ -1,214 +1,225 @@
-🌦️ GDASH Challenge - Intelligent Weather Monitor
+# GDASH Analytics
 
-Uma plataforma Full-Stack de monitoramento climático em tempo real, baseada em arquitetura de microsserviços orientada a eventos e alimentada por Inteligência Artificial Generativa.
+Plataforma full-stack de monitoramento climatico com frontend React, API NestJS, MongoDB, RabbitMQ, worker em Go e coletor em Python. O projeto combina consultas meteorologicas em tempo real, historico de 30 dias, insights por IA ou fallback local, autenticacao por codigo no email e painel administrativo de usuarios e visitas.
 
-🧠 Configuração da Inteligência Artificial (IMPORTANTE)
+## Visao Geral
 
-O sistema utiliza o Google Gemini 1.5 Flash para gerar insights climáticos avançados.
-Sem a chave de API, o projeto funciona em modo de contingência (Fallback), com regras locais simplificadas.
+O sistema hoje atende dois fluxos principais:
 
-🔑 Como gerar sua chave
+- Painel interativo por cidade: cada usuario pode escolher uma cidade do Brasil, carregar o clima atual, consultar historico horario dos ultimos 30 dias e visualizar 3 insights rotativos.
+- Pipeline orientada a eventos: o coletor busca dados climaticos, publica no RabbitMQ, o worker processa a fila e a API persiste os registros ingeridos no MongoDB.
 
-Acesse o Google AI Studio:
-https://aistudio.google.com/app/apikey
+## Principais Recursos
 
-Clique em Create API key.
+- Login por codigo enviado por email.
+- Login com Google quando `GOOGLE_CLIENT_ID` estiver configurado.
+- Seed automatica do usuario administrador com `ADMIN_EMAIL` e `ADMIN_NAME`.
+- Perfil por usuario com cidade preferida, estado, latitude, longitude e timezone.
+- Busca de cidades brasileiras via Open-Meteo Geocoding API.
+- Clima atual por cidade com 3 insights por consulta.
+- Rotacao automatica dos insights no card principal.
+- Historico horario de ate 30 dias por cidade.
+- Exportacao de dados em CSV e XLSX.
+- Painel admin com usuarios cadastrados, visitas e usuarios ativos.
+- Fallback local para insights quando a IA nao estiver configurada ou falhar.
+- Fallback de login em desenvolvimento: se SMTP nao estiver configurado, o backend retorna o codigo de acesso para uso local.
 
-Copie a chave gerada (começa com AIza...).
+## Arquitetura
 
-📥 Onde inserir a chave
+### Frontend
 
-Abra o arquivo docker-compose.yml na raiz do projeto e cole a sua chave na variável GEMINI_API_KEY:
+- `frontend-react`: React 19 + Vite + TypeScript.
+- Dashboard com autenticacao, cidade por usuario, graficos em Recharts, perfil e admin.
 
-collector:
-  environment:
-    GEMINI_API_KEY: "SUA_CHAVE_AQUI"
+### Backend
 
+- `backend-nestjs`: API NestJS com MongoDB via Mongoose.
+- Modulos principais:
+  - `auth`: login por email, Google e perfil autenticado.
+  - `users`: CRUD administrativo de usuarios.
+  - `weather`: clima atual, historico, busca de cidades e exportacao.
+  - `analytics`: visitas, heartbeat e overview admin.
 
-Alternativa: você pode exportar a variável no terminal antes de subir os containers:
+### Pipeline
 
-export GEMINI_API_KEY="AIza...SUA_CHAVE..."
-docker-compose up -d --build
+- `collector-python`: coleta clima e publica eventos.
+- `worker-go`: consome a fila e envia para a API.
+- `rabbitmq`: barramento de mensagens.
+- `mongo`: persistencia principal.
 
+## Stack
 
-📋 Sobre o Projeto
+- React 19
+- Vite
+- TypeScript
+- Tailwind CSS
+- Recharts
+- NestJS 11
+- MongoDB
+- RabbitMQ
+- Python
+- Go
+- Docker Compose
+- Open-Meteo
+- Gemini API opcional
 
-Esta solução foi desenvolvida como parte do processo seletivo da GDASH. O objetivo foi criar um sistema resiliente e escalável que não apenas coleta dados meteorológicos, mas gera inteligência contextual sobre eles.
+## Como Rodar Localmente
 
-O sistema coleta dados da Open-Meteo, processa-os através de uma pipeline de mensageria robusta e apresenta-os num Dashboard interativo que se adapta visualmente ao ciclo dia/noite.
+### 1. Criar o arquivo `.env`
 
-🚀 Diferenciais Implementados
+Crie um arquivo `.env` na raiz do projeto. Exemplo:
 
-IA Generativa Real: Integração com Google Gemini 1.5 Flash para gerar insights climáticos únicos e humanizados.
+```env
+GEMINI_API_KEY=
 
-Resiliência (Fallback): Sistema de contingência que ativa uma lógica local robusta caso a API de IA falhe ou fique offline.
+RABBITMQ_DEFAULT_USER=admin
+RABBITMQ_DEFAULT_PASS=password123
+RABBIT_HOST=rabbitmq
 
-UX Profissional: Interface moderna que alterna temas automaticamente (Dia/Noite) e gráficos fluídos sem "flicker" de carregamento.
+MONGO_URI=mongodb://admin:password123@mongo:27017/gdash?authSource=admin
 
-Auditoria: Ferramentas completas de filtragem histórica e exportação de relatórios oficiais (Excel/CSV).
+PORT=3000
+TZ=America/Sao_Paulo
+JWT_SECRET=troque_esta_chave
+ADMIN_EMAIL=seu-email@exemplo.com
+ADMIN_NAME=Seu Nome
 
-⚙️ Arquitetura da Solução
+GOOGLE_CLIENT_ID=
+VITE_API_BASE_URL=http://localhost:3000
 
-O sistema segue uma arquitetura desacoplada onde cada serviço possui responsabilidade única:
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM_EMAIL=
+```
 
-Collector (Python 3.11):
+### 2. Subir os servicos
 
-Ingestão de dados da Open-Meteo.
+```powershell
+docker compose up -d --build
+```
 
-Conexão com Google Gemini para enriquecimento de dados (Insights).
+### 3. Acessar
 
-Produtor de mensagens para o RabbitMQ.
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:3000`
+- Swagger: `http://localhost:3000/api`
+- RabbitMQ Management: `http://localhost:15672`
 
-Message Broker (RabbitMQ):
+## Reset Completo do Banco
 
-Garante o desacoplamento e a persistência dos dados entre coleta e processamento.
+Para apagar todos os dados e recriar o banco do zero:
 
-Worker (Go 1.24):
+```powershell
+docker compose down -v --remove-orphans
+docker compose up -d --build
+```
 
-Consumidor de alta performance.
+Quando o backend iniciar novamente, ele recria automaticamente o admin definido em `ADMIN_EMAIL`.
 
-Processa a fila e despacha os dados validados para a API via HTTP.
+## Fluxo de Login
 
-API (NestJS / Node 20):
+### Email
 
-Gestão de regras de negócio, autenticação JWT e persistência no MongoDB.
+1. O admin inicial e criado automaticamente com o email definido no `.env`.
+2. O admin pode acessar o painel e criar novos usuarios.
+3. Cada usuario entra informando o email e recebendo um codigo de 6 digitos.
 
-Geração de relatórios (Excel/CSV).
+Se `SMTP_HOST` e `SMTP_FROM_EMAIL` nao estiverem configurados, o backend entra em fallback de desenvolvimento e retorna o codigo para login local.
 
-Documentação automática via Swagger.
+### Google
 
-Frontend (React + Vite):
+O login Google e opcional. Para habilitar:
 
-Dashboard em tempo real (Polling inteligente).
+- configure `GOOGLE_CLIENT_ID` no backend e no frontend
+- use um client web no Google Identity
+- adicione `http://localhost:5173` nas origens autorizadas em desenvolvimento
 
-Gráficos interativos com Recharts e estilização com Tailwind CSS.
+Se `GOOGLE_CLIENT_ID` estiver vazio, o app continua funcionando normalmente sem esse botao.
 
-🛠️ Tecnologias Utilizadas
+## Insights e Clima
 
-Camada
+- O clima atual e consultado por cidade usando Open-Meteo.
+- O historico usa dados horarios da API historica da Open-Meteo.
+- A IA tenta gerar exatamente 3 insights por consulta.
+- Esses 3 insights revezam automaticamente no card principal do dashboard.
+- Se nao houver `GEMINI_API_KEY`, se a IA falhar, ou se nao existir usuario ativo, o sistema usa 3 insights de fallback coerentes com os dados atuais.
 
-Tecnologia
+## Endpoints Principais
 
-Detalhes
+### Auth
 
-Infraestrutura
+- `POST /auth/request-login-code`
+- `POST /auth/verify-login-code`
+- `POST /auth/google`
+- `GET /auth/me`
+- `PATCH /auth/me`
 
-Docker & Compose
+### Usuarios
 
-Orquestração completa dos 6 serviços
+- `POST /users`
+- `GET /users`
+- `GET /users/:id`
+- `DELETE /users/:id`
 
-Coleta & IA
+### Weather
 
-Python 3.11
+- `GET /weather/cities?q=juiz`
+- `GET /weather/live?...`
+- `GET /weather/history?...`
+- `GET /weather`
+- `GET /weather/export/csv`
+- `GET /weather/export/xlsx`
+- `POST /weather`
 
-Requests, Pika, Google GenAI SDK
+### Analytics
 
-Mensageria
+- `GET /analytics/active-users`
+- `POST /analytics/visits/start`
+- `POST /analytics/visits/heartbeat`
+- `POST /analytics/visits/end`
+- `GET /analytics/overview`
+- `GET /analytics/visits`
 
-RabbitMQ
+## Deploy no Vercel
 
-Gestão de filas e exchanges
+O repositorio tem um `vercel.json` na raiz para fazer o deploy do frontend que esta dentro de `frontend-react`.
 
-Worker
+### Configuracao recomendada
 
-Go (Golang) 1.24
+- Root do projeto: raiz do repositorio
+- Framework: Vite
+- Variavel obrigatoria: `VITE_API_BASE_URL`
 
-Processamento concorrente de alta velocidade
+Exemplo:
 
-Backend
+```env
+VITE_API_BASE_URL=https://seu-backend-publico.com
+```
 
-NestJS (Node 20)
+### Importante
 
-TypeScript, Mongoose, Swagger, ExcelJS
+- O Vercel publica apenas o frontend.
+- O backend, MongoDB, RabbitMQ, worker e coletor precisam estar hospedados em outro ambiente.
+- Se `VITE_API_BASE_URL` nao apontar para uma API publica valida, o frontend sobe mas nao consegue autenticar nem carregar clima.
 
-Banco de Dados
+## Estrutura de Pastas
 
-MongoDB
+```text
+.
+|-- backend-nestjs
+|-- collector-python
+|-- frontend-react
+|-- worker-go
+|-- docker-compose.yml
+|-- vercel.json
+```
 
-Armazenamento de logs históricos
+## Observacoes
 
-Frontend
-
-React (Vite)
-
-TypeScript, TailwindCSS, Recharts
-
-🚀 Como Rodar o Projeto
-
-Pré-requisitos
-
-Docker e Docker Compose instalados e rodando.
-
-Passo a Passo
-
-Clone o repositório
-
-git clone [https://github.com/alvaro-amorim/desafio-gdash-2025-02.git](https://github.com/alvaro-amorim/desafio-gdash-2025-02.git)
-cd gdash-challenge
-
-
-Gere sua chave de API no Google
-
-Acesse:
-https://aistudio.google.com/app/apikey
-
-Clique em Create API Key e copie a chave que começa com AIza....
-
-Adicione sua chave ao docker-compose.yml
-
-Ajuste a variável GEMINI_API_KEY dentro do serviço collector:
-
-# Exemplo de uso no docker-compose.yml
-collector:
-  environment:
-    GEMINI_API_KEY: "SUA_CHAVE_AQUI"
-
-
-Ou exporte no terminal:
-
-export GEMINI_API_KEY="AIza...sua_chave"
-
-
-Suba a infraestrutura
-
-docker-compose up -d --build
-
-
-Aguarde a inicialização completa.
-
-Verifique os serviços
-
-docker ps
-
-
-🔑 Acesso ao Sistema
-
-🖥️ Dashboard (Frontend)
-
-URL: http://localhost:5173
-
-Credenciais de Acesso (Admin):
-
-Email: admin@gdash.io
-
-Senha: 123456
-
-📚 Documentação da API (Swagger)
-
-URL: http://localhost:3000/api
-
-Explore e teste os endpoints diretamente pelo navegador.
-
-🐰 Painel do RabbitMQ
-
-URL: http://localhost:15672
-
-Login: admin / password123
-
-📹 Vídeo de Apresentação
-
-Confira a demonstração completa da arquitetura e funcionamento do sistema no link abaixo:
-
-▶️ Assistir Vídeo no YouTube
-
-Desenvolvido por Álvaro Amorim
+- Para Gmail SMTP, use App Password em vez da senha normal da conta.
+- O projeto funciona localmente mesmo sem SMTP e sem Gemini, usando os fallbacks descritos acima.
+- O frontend foi pensado para consumo via JWT; o token e persistido localmente no navegador.
+- O painel por cidade usa as rotas novas de `live` e `history`, enquanto a pipeline de ingestao continua disponivel para registros e exportacoes.

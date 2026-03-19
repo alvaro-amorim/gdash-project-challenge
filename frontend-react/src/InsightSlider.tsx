@@ -1,59 +1,67 @@
 import { useEffect, useState } from 'react';
 
-export function InsightSlider({ text }: { text: string }) {
+interface InsightSliderProps {
+  insights: string[];
+}
+
+export function InsightSlider({ insights }: InsightSliderProps) {
+  const safeInsights = insights.length > 0 ? insights : ['Aguardando analise do clima atual.'];
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [fade, setFade] = useState(true);
-  const [msgList, setMsgList] = useState<string[]>([]);
+  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    const newMessages = text
-      .split(/[.!]\s+/)
-      .filter(Boolean)
-      .map((message) => message.replace(/[.!]$/, '') + '.');
+    setCurrentIndex(0);
+    setVisible(true);
+  }, [safeInsights.join('|')]);
 
-    if (msgList.length === 0) {
-      setMsgList(newMessages);
-      setCurrentIndex(0);
+  useEffect(() => {
+    if (safeInsights.length <= 1) {
       return;
     }
 
-    if (JSON.stringify(newMessages) !== JSON.stringify(msgList)) {
-      setFade(false);
-      const timer = setTimeout(() => {
-        setMsgList(newMessages);
-        setCurrentIndex(0);
-        setFade(true);
-      }, 500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [msgList, text]);
-
-  useEffect(() => {
-    if (msgList.length <= 1) {
-      return;
-    }
-
+    let timeoutId: number | undefined;
     const interval = setInterval(() => {
-      setFade(false);
-      setTimeout(() => {
-        setCurrentIndex((previousIndex) => (previousIndex + 1) % msgList.length);
-        setFade(true);
-      }, 500);
-    }, 15000);
+      setVisible(false);
 
-    return () => clearInterval(interval);
-  }, [msgList]);
+      timeoutId = window.setTimeout(() => {
+        setCurrentIndex((previousIndex) => (previousIndex + 1) % safeInsights.length);
+        setVisible(true);
+      }, 260);
+    }, 6500);
+
+    return () => {
+      clearInterval(interval);
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [safeInsights]);
 
   return (
-    <div className="flex min-h-[5.5rem] items-center">
-      <p
-        className={`text-xl font-medium leading-snug text-white transition-all duration-500 sm:text-2xl ${
-          fade ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-        }`}
-      >
-        "{msgList[currentIndex] || 'Aguardando analise...'}"
-      </p>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        {safeInsights.map((_, index) => (
+          <span
+            key={`insight-dot-${index}`}
+            className={`h-2.5 rounded-full transition-all duration-300 ${
+              index === currentIndex ? 'w-8 bg-white' : 'w-2.5 bg-white/35'
+            }`}
+          />
+        ))}
+        <span className="ml-2 text-xs font-semibold uppercase tracking-[0.24em] text-white/70">
+          {currentIndex + 1}/{safeInsights.length}
+        </span>
+      </div>
+
+      <div className="flex min-h-[6.5rem] items-center">
+        <p
+          className={`text-xl font-medium leading-snug text-white transition-all duration-300 sm:text-2xl ${
+            visible ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
+          }`}
+        >
+          "{safeInsights[currentIndex]}"
+        </p>
+      </div>
     </div>
   );
 }

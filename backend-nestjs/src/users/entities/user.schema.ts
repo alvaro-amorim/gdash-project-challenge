@@ -25,6 +25,24 @@ export class User {
   @Prop()
   avatarUrl?: string;
 
+  @Prop()
+  preferredCityName?: string;
+
+  @Prop()
+  preferredStateName?: string;
+
+  @Prop()
+  preferredStateCode?: string;
+
+  @Prop()
+  preferredLatitude?: number;
+
+  @Prop()
+  preferredLongitude?: number;
+
+  @Prop()
+  preferredTimezone?: string;
+
   @Prop({ default: false })
   emailVerified: boolean;
 

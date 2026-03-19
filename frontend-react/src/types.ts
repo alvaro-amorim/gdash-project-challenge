@@ -11,6 +11,43 @@ export interface WeatherData {
   is_day?: number;
 }
 
+export interface CityOption {
+  cityName: string;
+  stateName?: string | null;
+  stateCode?: string | null;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  displayName: string;
+}
+
+export interface WeatherHistoryPoint {
+  collected_at: string;
+  temp: number;
+  humidity: number;
+  wind_speed: number;
+  precipitation: number;
+  is_day: number;
+}
+
+export interface WeatherHistoryResponse {
+  location: CityOption;
+  range: {
+    startDate: string;
+    endDate: string;
+    pointCount: number;
+  };
+  points: WeatherHistoryPoint[];
+}
+
+export interface LiveWeatherData extends WeatherHistoryPoint, CityOption {
+  insight: string;
+  insights: string[];
+  insight_source: 'ai' | 'fallback';
+  has_active_viewer: boolean;
+  ai_generated_at?: string | null;
+}
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -18,6 +55,12 @@ export interface AuthUser {
   role: 'admin' | 'user';
   provider: 'email' | 'google';
   avatarUrl?: string | null;
+  preferredCityName?: string | null;
+  preferredStateName?: string | null;
+  preferredStateCode?: string | null;
+  preferredLatitude?: number | null;
+  preferredLongitude?: number | null;
+  preferredTimezone?: string | null;
   emailVerified: boolean;
   lastLoginAt?: string | null;
   createdAt?: string | null;

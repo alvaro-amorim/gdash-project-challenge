@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Post, Query, Res, Logger } from '@nestjs/common';
-import { ApiOperation, ApiTags, ApiQuery, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Body, Controller, Get, Logger, Post, Query, Res } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { Parser } from 'json2csv';
 import * as ExcelJS from 'exceljs';
-import { WeatherService } from './weather.service';
+import { Parser } from 'json2csv';
 import { Weather } from './entities/weather.schema';
+import { WeatherHistoryPoint, WeatherService } from './weather.service';
 
 class CreateWeatherDto {
   temp: number;
@@ -20,9 +20,18 @@ class CreateWeatherDto {
   longitude: string;
 }
 
+class WeatherLocationQueryDto {
+  latitude?: string;
+  longitude?: string;
+  cityName?: string;
+  stateName?: string;
+  stateCode?: string;
+  timezone?: string;
+}
+
 const EXCEL_STYLES = {
-  TITLE_BG: 'FF111827', 
-  HEADER_BG: 'FF10B981', 
+  TITLE_BG: 'FF111827',
+  HEADER_BG: 'FF10B981',
   TEXT_WHITE: 'FFFFFFFF',
   FONT_FAMILY: 'Arial',
 };
@@ -42,8 +51,61 @@ export class WeatherController {
     return this.weatherService.create(data);
   }
 
+  @Get('cities')
+  @ApiOperation({ summary: 'Search Brazilian cities for user selection' })
+  @ApiQuery({ name: 'q', required: true, description: 'City name or partial term' })
+  searchCities(@Query('q') query: string) {
+    return this.weatherService.searchCities(query || '');
+  }
+
+  @Get('live')
+  @ApiOperation({ summary: 'Retrieve current weather and rotating insight bundle for a city' })
+  @ApiQuery({ name: 'latitude', required: false })
+  @ApiQuery({ name: 'longitude', required: false })
+  @ApiQuery({ name: 'cityName', required: false })
+  @ApiQuery({ name: 'stateName', required: false })
+  @ApiQuery({ name: 'stateCode', required: false })
+  @ApiQuery({ name: 'timezone', required: false })
+  getLiveWeather(@Query() query: WeatherLocationQueryDto) {
+    return this.weatherService.getLiveWeather({
+      latitude: this.parseNumber(query.latitude),
+      longitude: this.parseNumber(query.longitude),
+      cityName: query.cityName,
+      stateName: query.stateName,
+      stateCode: query.stateCode,
+      timezone: query.timezone,
+    });
+  }
+
+  @Get('history')
+  @ApiOperation({ summary: 'Retrieve hourly historical weather for a city' })
+  @ApiQuery({ name: 'latitude', required: false })
+  @ApiQuery({ name: 'longitude', required: false })
+  @ApiQuery({ name: 'cityName', required: false })
+  @ApiQuery({ name: 'stateName', required: false })
+  @ApiQuery({ name: 'stateCode', required: false })
+  @ApiQuery({ name: 'timezone', required: false })
+  @ApiQuery({ name: 'startDate', required: false, description: 'YYYY-MM-DD' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'YYYY-MM-DD' })
+  @ApiQuery({ name: 'days', required: false, description: 'Fallback range when no explicit start/end is provided' })
+  getHistory(
+    @Query() query: WeatherLocationQueryDto & { startDate?: string; endDate?: string; days?: string },
+  ) {
+    return this.weatherService.getHistory({
+      latitude: this.parseNumber(query.latitude),
+      longitude: this.parseNumber(query.longitude),
+      cityName: query.cityName,
+      stateName: query.stateName,
+      stateCode: query.stateCode,
+      timezone: query.timezone,
+      startDate: this.toDateOnly(query.startDate),
+      endDate: this.toDateOnly(query.endDate),
+      days: query.days ? Number.parseInt(query.days, 10) : undefined,
+    });
+  }
+
   @Get()
-  @ApiOperation({ summary: 'Retrieve weather history' })
+  @ApiOperation({ summary: 'Retrieve stored weather history from ingestion pipeline' })
   @ApiQuery({ name: 'limit', required: false, description: 'Number of records (0 for all)' })
   @ApiQuery({ name: 'start', required: false, description: 'Start date (ISO)' })
   @ApiQuery({ name: 'end', required: false, description: 'End date (ISO)' })
@@ -53,20 +115,22 @@ export class WeatherController {
     @Query('start') start?: string,
     @Query('end') end?: string,
   ) {
-    const quantity = limit !== undefined ? parseInt(limit, 10) : 100;
+    const quantity = limit !== undefined ? Number.parseInt(limit, 10) : 100;
     return this.weatherService.findAll(quantity, start, end);
   }
 
   @Get('export/csv')
-  @ApiOperation({ summary: 'Download history as CSV' })
-  async exportCsv(@Res() res: Response) {
+  @ApiOperation({ summary: 'Download weather history as CSV' })
+  async exportCsv(
+    @Res() res: Response,
+    @Query() query?: WeatherLocationQueryDto & { startDate?: string; endDate?: string; days?: string },
+  ) {
     try {
-      const data = await this.weatherService.findAll(0);
-      const jsonData = JSON.parse(JSON.stringify(data));
-      const fields = ['collected_at', 'temp', 'humidity', 'wind_speed', 'insight'];
-      
-      const parser = new Parser({ fields });
-      const csv = parser.parse(jsonData);
+      const data = await this.resolveExportData(query);
+      const parser = new Parser({
+        fields: ['collected_at', 'temp', 'humidity', 'wind_speed', 'precipitation', 'is_day'],
+      });
+      const csv = parser.parse(data);
 
       res.header('Content-Type', 'text/csv');
       res.attachment(`weather_history_${Date.now()}.csv`);
@@ -78,32 +142,47 @@ export class WeatherController {
   }
 
   @Get('export/xlsx')
-  @ApiOperation({ summary: 'Download history as Excel (XLSX)' })
-  async exportXlsx(@Res() res: Response) {
+  @ApiOperation({ summary: 'Download weather history as Excel (XLSX)' })
+  async exportXlsx(
+    @Res() res: Response,
+    @Query() query?: WeatherLocationQueryDto & { startDate?: string; endDate?: string; days?: string },
+  ) {
     try {
-      const data = await this.weatherService.findAll(0);
-      
+      const data = await this.resolveExportData(query);
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('GDASH Report', {
-        views: [{ showGridLines: false }]
+        views: [{ showGridLines: false }],
       });
 
-      worksheet.mergeCells('A1:E1');
+      worksheet.mergeCells('A1:F1');
       const titleCell = worksheet.getCell('A1');
       titleCell.value = 'CLIMATE MONITORING REPORT - GDASH';
-      titleCell.font = { name: EXCEL_STYLES.FONT_FAMILY, size: 16, bold: true, color: { argb: EXCEL_STYLES.TEXT_WHITE } };
+      titleCell.font = {
+        name: EXCEL_STYLES.FONT_FAMILY,
+        size: 16,
+        bold: true,
+        color: { argb: EXCEL_STYLES.TEXT_WHITE },
+      };
       titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EXCEL_STYLES.TITLE_BG } };
       titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
       worksheet.getRow(1).height = 30;
 
-      worksheet.getRow(2).values = ['Timestamp', 'Temperature (°C)', 'Humidity (%)', 'Wind Speed (km/h)', 'AI Insight / Status'];
-      
+      worksheet.getRow(2).values = [
+        'Timestamp',
+        'Temperature (C)',
+        'Humidity (%)',
+        'Wind Speed (km/h)',
+        'Precipitation (mm)',
+        'Period',
+      ];
+
       worksheet.columns = [
         { key: 'collected_at', width: 25 },
         { key: 'temp', width: 18 },
         { key: 'humidity', width: 15 },
         { key: 'wind_speed', width: 18 },
-        { key: 'insight', width: 80 }, 
+        { key: 'precipitation', width: 20 },
+        { key: 'period', width: 16 },
       ];
 
       const headerRow = worksheet.getRow(2);
@@ -112,7 +191,12 @@ export class WeatherController {
         cell.font = { name: EXCEL_STYLES.FONT_FAMILY, bold: true, color: { argb: EXCEL_STYLES.TEXT_WHITE } };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: EXCEL_STYLES.HEADER_BG } };
         cell.alignment = { vertical: 'middle', horizontal: 'center' };
-        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
       });
 
       data.forEach((item) => {
@@ -121,17 +205,18 @@ export class WeatherController {
           temp: item.temp,
           humidity: item.humidity,
           wind_speed: item.wind_speed,
-          insight: item.insight || '-',
+          precipitation: item.precipitation,
+          period: item.is_day === 1 ? 'Day' : 'Night',
         });
 
-        row.eachCell((cell, colNumber) => {
-          cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-          
-          if (colNumber === 5) {
-            cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
-          } else {
-            cell.alignment = { vertical: 'middle', horizontal: 'center' };
-          }
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' },
+          };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
         });
       });
 
@@ -140,10 +225,57 @@ export class WeatherController {
 
       await workbook.xlsx.write(res);
       res.end();
-
     } catch (err) {
       this.logger.error('Failed to export Excel', err);
       return res.status(500).json({ message: 'Error generating Excel file', error: err });
     }
+  }
+
+  private async resolveExportData(
+    query?: WeatherLocationQueryDto & { startDate?: string; endDate?: string; days?: string },
+  ): Promise<WeatherHistoryPoint[]> {
+    if (query?.latitude && query?.longitude) {
+      const history = await this.weatherService.getHistory({
+        latitude: this.parseNumber(query.latitude),
+        longitude: this.parseNumber(query.longitude),
+        cityName: query.cityName,
+        stateName: query.stateName,
+        stateCode: query.stateCode,
+        timezone: query.timezone,
+        startDate: this.toDateOnly(query.startDate),
+        endDate: this.toDateOnly(query.endDate),
+        days: query.days ? Number.parseInt(query.days, 10) : 30,
+      });
+
+      return history.points;
+    }
+
+    const data = await this.weatherService.findAll(0);
+    return data.map((item) => ({
+      collected_at: item.collected_at,
+      temp: item.temp,
+      humidity: item.humidity,
+      wind_speed: item.wind_speed,
+      precipitation: item.precipitation,
+      is_day: item.is_day,
+    }));
+  }
+
+  private parseNumber(value?: string) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private toDateOnly(value?: string) {
+    if (!value) {
+      return undefined;
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return undefined;
+    }
+
+    return parsed.toISOString().slice(0, 10);
   }
 }

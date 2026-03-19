@@ -95,64 +95,76 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   };
 
   return (
-    <div className="min-h-screen px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="hidden lg:block">
-          <div className="glass-panel soft-grid relative overflow-hidden p-8 xl:p-10">
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-primary via-cyan-400 to-brand-secondary" />
-            <div className="mb-12 flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+    <div className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-8 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="glass-panel-dark relative overflow-hidden p-8 xl:p-10">
+          <div className="soft-grid absolute inset-0 opacity-20" />
+          <div className="absolute -left-10 top-10 h-40 w-40 rounded-full bg-brand-primary/20 blur-3xl" />
+          <div className="absolute -right-10 bottom-0 h-56 w-56 rounded-full bg-brand-accent/18 blur-3xl" />
+
+          <div className="relative z-10">
+            <div className="mb-10 flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-[24px] border border-white/12 bg-white/10 shadow-[0_16px_40px_-20px_rgba(12,24,40,0.7)]">
                 <img src={loginLogo} alt="GDASH Logo" className="h-10 w-10 object-contain" />
               </div>
               <div>
-                <p className="section-kicker mb-2">Climate Intelligence Workspace</p>
-                <h1 className="font-display text-4xl font-bold text-brand-dark">
-                  Dados ao vivo, leitura clara e acoes rapidas.
+                <p className="section-kicker text-white/60">Climate intelligence workspace</p>
+                <h1 className="mt-2 font-display text-4xl font-bold text-white sm:text-5xl">
+                  Um painel que parece produto, nao prototipo.
                 </h1>
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
               {[
-                ['Coleta continua', 'Clima atualizado em pequenos intervalos para o dashboard seguir vivo.'],
-                ['IA sob demanda', 'Insights so aparecem quando ha alguem online e respeitam a janela de 20 minutos.'],
-                ['Operacao simples', 'Sem Google Cloud obrigatorio: email em modo dev ou SMTP quando voce quiser.'],
+                ['Leitura viva', 'Clima atual, historico e cidade do usuario integrados em um unico fluxo.'],
+                ['IA em pacotes', 'A interface gira os insights em vez de travar um texto unico e cansativo.'],
+                ['Deploy leve', 'Frontend pode ir para Vercel e backend continuar separado sem custo alto.'],
               ].map(([title, description]) => (
-                <article key={title} className="metric-panel p-5">
-                  <p className="section-kicker mb-3">{title}</p>
-                  <p className="text-sm leading-6 text-brand-muted">{description}</p>
+                <article key={title} className="rounded-[28px] border border-white/10 bg-white/10 p-5">
+                  <p className="section-kicker text-white/55">{title}</p>
+                  <p className="mt-4 text-sm leading-6 text-white/70">{description}</p>
                 </article>
               ))}
             </div>
 
-            <div className="mt-8 rounded-[24px] bg-brand-dark px-6 py-5 text-slate-100 shadow-[0_18px_50px_-24px_rgba(15,23,42,0.8)]">
-              <p className="section-kicker mb-3 text-slate-300">Nota rapida sobre SMTP</p>
-              <p className="text-sm leading-6 text-slate-200">
-                Para Gmail, use senha de app, nao a senha normal da conta.
-              </p>
+            <div className="mt-8 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="rounded-[30px] border border-white/10 bg-white/10 p-6">
+                <p className="section-kicker text-white/55">Como entrar</p>
+                <p className="mt-3 max-w-xl text-lg leading-8 text-white/90">
+                  O acesso continua simples: email, codigo temporario e opcionalmente Google.
+                  O que muda aqui e a experiencia visual, nao a friccao.
+                </p>
+              </div>
+              <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.05))] p-6">
+                <p className="section-kicker text-white/55">SMTP</p>
+                <p className="mt-3 text-sm leading-7 text-white/80">
+                  Para Gmail, use senha de app. Nao use a senha normal da conta.
+                </p>
+              </div>
             </div>
           </div>
         </section>
 
         <div className="glass-panel mx-auto w-full max-w-xl overflow-hidden">
-          <div className="border-b border-slate-200/70 bg-white/70 px-8 py-7 sm:px-10">
+          <div className="border-b border-slate-200/70 bg-white/60 px-8 py-7 sm:px-10">
             <div className="mb-6 flex items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
+                <div className="flex h-16 w-16 items-center justify-center rounded-[24px] bg-white shadow-sm ring-1 ring-slate-200/70">
                   <img src={loginLogo} alt="GDASH Logo" className="h-10 w-10 object-contain" />
                 </div>
                 <div>
                   <p className="section-kicker mb-2">Portal GDASH</p>
-                  <h2 className="font-display text-3xl font-bold text-brand-dark">Bem-vindo</h2>
+                  <h2 className="font-display text-3xl font-bold text-brand-dark">Entrar no painel</h2>
                 </div>
               </div>
-              <span className="rounded-full border border-brand-primary/15 bg-brand-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-secondary">
-                {phase === 'request' ? 'Acesso' : 'Validacao'}
+              <span className="status-pill border-brand-primary/15 bg-brand-primary/10 text-brand-secondary">
+                {phase === 'request' ? 'acesso' : 'validacao'}
               </span>
             </div>
 
             <p className="max-w-md text-sm leading-6 text-brand-muted">
-              Entre com o email do seu perfil e valide o codigo temporario.
+              Use o email do seu perfil para receber o codigo de acesso e liberar o workspace.
             </p>
           </div>
 
@@ -209,7 +221,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="action-button w-full rounded-3xl bg-brand-primary px-5 py-4 text-white shadow-[0_16px_40px_-18px_rgba(15,159,143,0.8)] hover:bg-brand-secondary disabled:opacity-50"
+                className="primary-button w-full rounded-[24px] px-5 py-4 disabled:opacity-50"
               >
                 {loading
                   ? 'Processando...'
@@ -227,7 +239,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     setInfo('');
                     setDevCode('');
                   }}
-                  className="action-button w-full rounded-3xl border border-slate-200 bg-white text-brand-muted hover:bg-slate-50"
+                  className="secondary-button w-full rounded-[24px] py-4"
                 >
                   Alterar email
                 </button>

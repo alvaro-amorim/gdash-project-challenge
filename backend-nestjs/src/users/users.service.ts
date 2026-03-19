@@ -133,6 +133,30 @@ export class UsersService implements OnModuleInit {
       user.avatarUrl = updateUserDto.avatarUrl?.trim() || undefined;
     }
 
+    if (updateUserDto.preferredCityName !== undefined) {
+      user.preferredCityName = updateUserDto.preferredCityName?.trim() || undefined;
+    }
+
+    if (updateUserDto.preferredStateName !== undefined) {
+      user.preferredStateName = updateUserDto.preferredStateName?.trim() || undefined;
+    }
+
+    if (updateUserDto.preferredStateCode !== undefined) {
+      user.preferredStateCode = updateUserDto.preferredStateCode?.trim().toUpperCase() || undefined;
+    }
+
+    if (updateUserDto.preferredLatitude !== undefined) {
+      user.preferredLatitude = updateUserDto.preferredLatitude ?? undefined;
+    }
+
+    if (updateUserDto.preferredLongitude !== undefined) {
+      user.preferredLongitude = updateUserDto.preferredLongitude ?? undefined;
+    }
+
+    if (updateUserDto.preferredTimezone !== undefined) {
+      user.preferredTimezone = updateUserDto.preferredTimezone?.trim() || undefined;
+    }
+
     const savedUser = await user.save();
     return this.toPublicUser(savedUser);
   }
@@ -151,6 +175,12 @@ export class UsersService implements OnModuleInit {
       role: plainUser.role,
       provider: plainUser.provider,
       avatarUrl: plainUser.avatarUrl || null,
+      preferredCityName: plainUser.preferredCityName || null,
+      preferredStateName: plainUser.preferredStateName || null,
+      preferredStateCode: plainUser.preferredStateCode || null,
+      preferredLatitude: plainUser.preferredLatitude ?? null,
+      preferredLongitude: plainUser.preferredLongitude ?? null,
+      preferredTimezone: plainUser.preferredTimezone || null,
       emailVerified: plainUser.emailVerified,
       isActive: plainUser.isActive,
       createdBy: plainUser.createdBy || null,

@@ -58,17 +58,48 @@ export function ProfilePanel({ auth, onAuthChange }: ProfilePanelProps) {
   };
 
   return (
-    <div className="space-y-6 mb-8">
-      <div className="glass-panel p-6 sm:p-7">
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="mb-8 space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="glass-panel-dark relative overflow-hidden p-6 sm:p-7">
+          <div className="soft-grid absolute inset-0 opacity-20" />
+          <div className="relative z-10">
+            <p className="section-kicker text-white/55">Perfil do operador</p>
+            <h2 className="mt-3 font-display text-3xl font-bold text-white">Sua identidade dentro do painel</h2>
+            <p className="mt-3 max-w-xl text-sm leading-7 text-white/75">
+              Nome, email e cidade preferida agora fazem parte da mesma narrativa visual do dashboard.
+            </p>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-[26px] border border-white/10 bg-white/10 p-5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/50">Perfil</p>
+                <p className="mt-3 text-lg font-semibold text-white">
+                  {auth.user.role === 'admin' ? 'Administrador' : 'Usuario'}
+                </p>
+              </div>
+              <div className="rounded-[26px] border border-white/10 bg-white/10 p-5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/50">Provedor</p>
+                <p className="mt-3 text-lg font-semibold text-white">{auth.user.provider}</p>
+              </div>
+              <div className="rounded-[26px] border border-white/10 bg-white/10 p-5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/50">Verificacao</p>
+                <p className="mt-3 text-lg font-semibold text-white">
+                  {auth.user.emailVerified ? 'Concluida' : 'Pendente'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-panel p-6 sm:p-7">
+          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="section-kicker mb-2">Perfil do usuario</p>
+            <p className="section-kicker mb-2">Edicao rapida</p>
             <h2 className="font-display text-2xl font-bold text-brand-dark">Meu Perfil</h2>
             <p className="mt-2 text-sm leading-6 text-brand-muted">
               Gerencie seus dados e acompanhe seu acesso.
             </p>
           </div>
-          <div className="rounded-full border border-slate-200 bg-white/85 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-brand-muted">
+          <div className="status-pill border-slate-200 bg-white/85 text-brand-muted">
             {auth.user.role === 'admin' ? 'Administrador' : 'Usuario'}
           </div>
         </div>
@@ -114,11 +145,7 @@ export function ProfilePanel({ auth, onAuthChange }: ProfilePanelProps) {
           </div>
 
           <div className="md:col-span-3 flex flex-col gap-3 md:flex-row md:items-center">
-            <button
-              type="submit"
-              disabled={saving}
-              className="action-button rounded-2xl bg-brand-primary px-5 py-3 text-white shadow-[0_16px_38px_-18px_rgba(15,159,143,0.85)] hover:bg-brand-secondary disabled:opacity-50"
-            >
+            <button type="submit" disabled={saving} className="primary-button rounded-[22px] px-5 py-3 disabled:opacity-50">
               {saving ? 'Salvando...' : 'Salvar Perfil'}
             </button>
             <div className="text-sm text-brand-muted">
@@ -131,6 +158,23 @@ export function ProfilePanel({ auth, onAuthChange }: ProfilePanelProps) {
           </div>
         </form>
 
+        <div className="mt-5 rounded-3xl border border-slate-200/80 bg-white/80 px-4 py-4">
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-muted">
+            Cidade padrao do dashboard
+          </p>
+          <p className="mt-2 text-sm font-semibold text-brand-dark">
+            {auth.user.preferredCityName
+              ? [
+                  auth.user.preferredCityName,
+                  auth.user.preferredStateCode || auth.user.preferredStateName || 'Brasil',
+                ].join(', ')
+              : 'Juiz de Fora, MG'}
+          </p>
+          <p className="mt-2 text-sm text-brand-muted">
+            A cidade pode ser trocada diretamente no topo do dashboard. A selecao fica salva no seu perfil.
+          </p>
+        </div>
+
         {message ? (
           <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/85 p-3 text-sm text-emerald-700">
             {message}
@@ -141,6 +185,7 @@ export function ProfilePanel({ auth, onAuthChange }: ProfilePanelProps) {
             {error}
           </div>
         ) : null}
+        </div>
       </div>
 
       {auth.user.role === 'admin' ? <AdminPanel token={auth.token} /> : null}

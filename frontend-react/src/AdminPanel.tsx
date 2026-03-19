@@ -82,8 +82,9 @@ export function AdminPanel({ token }: AdminPanelProps) {
           { label: 'Visitas', value: overview?.totalVisits ?? 0 },
           { label: 'Hoje', value: overview?.visitsToday ?? 0 },
         ].map((item) => (
-          <div key={item.label} className="metric-panel p-4">
-            <div className="text-xs font-bold uppercase tracking-[0.22em] text-brand-muted mb-2">
+          <div key={item.label} className="metric-panel overflow-hidden p-5">
+            <div className="absolute inset-x-5 top-0 h-1 rounded-b-full bg-[linear-gradient(90deg,#153a59,#0ca89a)]" />
+            <div className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-brand-muted">
               {item.label}
             </div>
             <div className="font-display text-3xl font-bold text-brand-dark">{item.value}</div>
@@ -92,9 +93,11 @@ export function AdminPanel({ token }: AdminPanelProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="glass-panel p-6">
-          <p className="section-kicker mb-2">Controle de acesso</p>
-          <h3 className="font-display text-2xl font-bold text-brand-dark mb-4">Criar Usuario</h3>
+        <div className="glass-panel-dark relative overflow-hidden p-6">
+          <div className="soft-grid absolute inset-0 opacity-20" />
+          <div className="relative z-10">
+          <p className="section-kicker mb-2 text-white/55">Controle de acesso</p>
+          <h3 className="mb-4 font-display text-2xl font-bold text-white">Criar Usuario</h3>
           <form onSubmit={handleCreateUser} className="space-y-4">
             <input
               type="text"
@@ -122,21 +125,22 @@ export function AdminPanel({ token }: AdminPanelProps) {
             </select>
             <button
               type="submit"
-              className="action-button w-full rounded-2xl bg-brand-primary py-3 text-white shadow-[0_16px_38px_-18px_rgba(15,159,143,0.85)] hover:bg-brand-secondary"
+              className="primary-button w-full rounded-[22px] py-3"
             >
               Criar usuario
             </button>
           </form>
           {message ? (
-            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/85 p-3 text-sm text-emerald-700">
+            <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-sm text-emerald-50">
               {message}
             </div>
           ) : null}
           {error ? (
-            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/90 p-3 text-sm text-rose-700">
+            <div className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm text-rose-50">
               {error}
             </div>
           ) : null}
+          </div>
         </div>
 
         <div className="glass-panel xl:col-span-2 overflow-hidden">
@@ -148,7 +152,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
             <button
               type="button"
               onClick={() => loadAdminData().catch(() => undefined)}
-              className="action-button self-start rounded-2xl border border-slate-200 bg-white text-brand-muted hover:bg-slate-50"
+              className="secondary-button self-start rounded-[22px]"
             >
               Atualizar
             </button>
