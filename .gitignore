@@ -23,3 +23,4 @@ worker-go/main.exe
 
 # --- Docker ---
 .docker/
+.vercel
