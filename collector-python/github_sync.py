@@ -20,7 +20,7 @@ BOOTSTRAP_DAYS = max(1, int(os.getenv("WEATHER_BOOTSTRAP_DAYS", "30")))
 REQUEST_TIMEOUT = int(os.getenv("WEATHER_SYNC_TIMEOUT", "30"))
 HOURLY_FIELDS = "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,is_day"
 CURRENT_FIELDS = "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,is_day"
-CHUNK_SIZE = 500
+CHUNK_SIZE = max(10, int(os.getenv("WEATHER_SYNC_CHUNK_SIZE", "100")))
 
 
 def main() -> None:
@@ -178,14 +178,29 @@ def import_records(records: List[Dict[str, Any]]) -> int:
     total = 0
     for index in range(0, len(records), CHUNK_SIZE):
         chunk = records[index : index + CHUNK_SIZE]
+        total += import_chunk(chunk)
+
+    return total
+
+
+def import_chunk(chunk: List[Dict[str, Any]]) -> int:
+    try:
         response = request_json(
             "POST",
             f"{BASE_URL}/weather/import",
             body={"records": chunk},
         )
-        total += int(response.get("imported", 0))
-
-    return total
+        return int(response.get("imported", 0))
+    except requests.HTTPError as error:
+        status_code = error.response.status_code if error.response is not None else None
+        if status_code == 413 and len(chunk) > 1:
+            midpoint = len(chunk) // 2
+            logger.warning(
+                "Chunk with %s records exceeded payload size. Retrying in smaller batches.",
+                len(chunk),
+            )
+            return import_chunk(chunk[:midpoint]) + import_chunk(chunk[midpoint:])
+        raise
 
 
 def request_json(
