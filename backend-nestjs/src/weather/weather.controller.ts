@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Logger, Post, Query, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Logger,
+  Post,
+  Query,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import * as ExcelJS from 'exceljs';
@@ -7,17 +18,28 @@ import { Weather } from './entities/weather.schema';
 import { WeatherHistoryPoint, WeatherService } from './weather.service';
 
 class CreateWeatherDto {
+  cityName?: string;
+  stateName?: string;
+  stateCode?: string;
+  timezone?: string;
   temp: number;
   humidity: number;
   wind_speed: number;
   precipitation: number;
   insight: string;
+  insights?: string[];
   insight_source?: string;
   has_active_viewer?: boolean;
+  ai_generated_at?: string | null;
   is_day: number;
   collected_at: string;
-  latitude: string;
-  longitude: string;
+  latitude: string | number;
+  longitude: string | number;
+  source?: string;
+}
+
+class ImportWeatherDto {
+  records!: CreateWeatherDto[];
 }
 
 class WeatherLocationQueryDto {
@@ -49,6 +71,26 @@ export class WeatherController {
   @ApiResponse({ status: 201, description: 'Data successfully stored.' })
   create(@Body() data: CreateWeatherDto) {
     return this.weatherService.create(data);
+  }
+
+  @Get('sync/locations')
+  @ApiOperation({ summary: 'List tracked locations for background weather sync (Internal Use)' })
+  getSyncLocations(@Headers('x-weather-sync-secret') secret?: string) {
+    this.assertSyncSecret(secret);
+    return this.weatherService.getTrackedLocationsForSync();
+  }
+
+  @Post('import')
+  @ApiOperation({ summary: 'Import synchronized weather records (Internal Use)' })
+  @ApiBody({ type: ImportWeatherDto })
+  importMany(@Headers('x-weather-sync-secret') secret: string | undefined, @Body() body: ImportWeatherDto) {
+    this.assertSyncSecret(secret);
+
+    if (!Array.isArray(body?.records)) {
+      throw new BadRequestException('records must be an array');
+    }
+
+    return this.weatherService.importMany(body.records);
   }
 
   @Get('cities')
@@ -277,5 +319,17 @@ export class WeatherController {
     }
 
     return parsed.toISOString().slice(0, 10);
+  }
+
+  private assertSyncSecret(secret?: string) {
+    const configuredSecret = process.env.WEATHER_SYNC_SECRET?.trim();
+
+    if (!configuredSecret) {
+      throw new UnauthorizedException('Weather sync is not configured.');
+    }
+
+    if (!secret || secret !== configuredSecret) {
+      throw new UnauthorizedException('Invalid weather sync secret.');
+    }
   }
 }

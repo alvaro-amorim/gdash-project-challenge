@@ -146,6 +146,10 @@ export class WeatherService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    if (process.env.WEATHER_ENABLE_SERVER_SYNC !== 'true') {
+      return;
+    }
+
     void this.syncTrackedLocations('startup');
 
     this.syncTimer = setInterval(() => {
@@ -170,40 +174,19 @@ export class WeatherService implements OnModuleInit, OnModuleDestroy {
       longitude: data.longitude as string | number | undefined,
       timezone: this.toOptionalString(data.timezone),
     });
-
-    const fallbackInsights = this.buildFallbackInsights(
-      {
-        temperature_2m: data.temp,
-        relative_humidity_2m: data.humidity,
-        wind_speed_10m: data.wind_speed,
-        precipitation: data.precipitation,
-        is_day: data.is_day,
-      },
-      location,
-    );
-
-    const normalizedInsights = this.normalizeInsightList(
-      Array.isArray(data.insights) ? data.insights : fallbackInsights,
-    );
-
-    const entry: StoredWeatherEntry = {
-      ...this.toStoredLocation(location),
-      temp: this.toNumber(data.temp),
-      humidity: this.toNumber(data.humidity),
-      wind_speed: this.toNumber(data.wind_speed),
-      precipitation: this.toNumber(data.precipitation),
-      is_day: this.toNumber(data.is_day),
-      insight: this.toOptionalString(data.insight) || normalizedInsights[0] || fallbackInsights[0],
-      insights: normalizedInsights.length ? normalizedInsights : fallbackInsights,
-      insight_source: data.insight_source === 'ai' ? 'ai' : 'fallback',
-      has_active_viewer: Boolean(data.has_active_viewer),
-      ai_generated_at: this.normalizeOptionalCollectedAt(data.ai_generated_at),
-      collected_at: this.normalizeCollectedAt(data.collected_at),
-      source: 'manual',
-    };
+    const entry = this.normalizeStoredEntry(data, 'manual');
 
     await this.upsertWeatherEntries([entry]);
     return this.findStoredRecordByTimestamp(location, entry.collected_at);
+  }
+
+  async importMany(records: any[]) {
+    const entries = records.map((record) => this.normalizeStoredEntry(record, 'sync'));
+    await this.upsertWeatherEntries(entries);
+    return {
+      imported: entries.length,
+      locations: Array.from(new Set(entries.map((entry) => `${entry.cityName}:${entry.latitude}:${entry.longitude}`))).length,
+    };
   }
 
   async findAll(limit?: number, start?: string, end?: string): Promise<Weather[]> {
@@ -261,18 +244,10 @@ export class WeatherService implements OnModuleInit, OnModuleDestroy {
 
   async getLiveWeather(input: WeatherLocationInput): Promise<WeatherLiveResponse> {
     const location = this.toLocation(input);
-    await this.ensureLiveSnapshot(location);
-
-    let latestRecord = await this.findLatestStoredRecord(location);
-    if (!latestRecord) {
-      const endDate = this.toDateString(new Date());
-      const startDate = this.toDateString(new Date(Date.now() - ONE_DAY_MS));
-      await this.ensureHistoryCoverage(location, startDate, endDate);
-      latestRecord = await this.findLatestStoredRecord(location);
-    }
+    const latestRecord = await this.findLatestStoredRecord(location);
 
     if (!latestRecord) {
-      throw new Error('Weather data is not available for this city yet');
+      throw new Error('Ainda nao ha dados sincronizados para esta cidade.');
     }
 
     return this.toLiveResponse(location, latestRecord);
@@ -287,7 +262,6 @@ export class WeatherService implements OnModuleInit, OnModuleDestroy {
       input.startDate ||
       this.toDateString(new Date(Date.now() - (input.days || DEFAULT_BOOTSTRAP_DAYS) * ONE_DAY_MS));
 
-    await this.ensureHistoryCoverage(location, startDate, endDate);
     const records = await this.loadStoredHistory(location, startDate, endDate);
 
     return {
@@ -299,6 +273,22 @@ export class WeatherService implements OnModuleInit, OnModuleDestroy {
       },
       points: records.map((record) => this.toHistoryPoint(record)),
     };
+  }
+
+  async getTrackedLocationsForSync() {
+    const locations = await this.getTrackedLocations();
+
+    const states = await Promise.all(
+      locations.map(async (location) => {
+        const latestRecord = await this.findLatestStoredRecord(location);
+        return {
+          ...location,
+          latestCollectedAt: latestRecord?.collected_at || null,
+        };
+      }),
+    );
+
+    return states;
   }
 
   private async syncTrackedLocations(reason: 'startup' | 'interval') {
@@ -877,6 +867,54 @@ export class WeatherService implements OnModuleInit, OnModuleDestroy {
     }
 
     return insights.slice(0, 3);
+  }
+
+  private normalizeStoredEntry(
+    data: any,
+    defaultSource: StoredWeatherEntry['source'],
+  ): StoredWeatherEntry {
+    const location = this.toLocation({
+      cityName: this.toOptionalString(data.cityName),
+      stateName: this.toOptionalString(data.stateName),
+      stateCode: this.toOptionalString(data.stateCode),
+      latitude: data.latitude as string | number | undefined,
+      longitude: data.longitude as string | number | undefined,
+      timezone: this.toOptionalString(data.timezone),
+    });
+
+    const fallbackInsights = this.buildFallbackInsights(
+      {
+        temperature_2m: data.temp,
+        relative_humidity_2m: data.humidity,
+        wind_speed_10m: data.wind_speed,
+        precipitation: data.precipitation,
+        is_day: data.is_day,
+      },
+      location,
+    );
+
+    const normalizedInsights = this.normalizeInsightList(
+      Array.isArray(data.insights) ? data.insights : fallbackInsights,
+    );
+
+    return {
+      ...this.toStoredLocation(location),
+      temp: this.toNumber(data.temp),
+      humidity: this.toNumber(data.humidity),
+      wind_speed: this.toNumber(data.wind_speed),
+      precipitation: this.toNumber(data.precipitation),
+      is_day: this.toNumber(data.is_day),
+      insight: this.toOptionalString(data.insight) || normalizedInsights[0] || fallbackInsights[0],
+      insights: normalizedInsights.length ? normalizedInsights : fallbackInsights,
+      insight_source: data.insight_source === 'ai' ? 'ai' : 'fallback',
+      has_active_viewer: Boolean(data.has_active_viewer),
+      ai_generated_at: this.normalizeOptionalCollectedAt(data.ai_generated_at),
+      collected_at: this.normalizeCollectedAt(data.collected_at),
+      source:
+        data.source === 'archive' || data.source === 'manual' || data.source === 'sync'
+          ? data.source
+          : defaultSource,
+    };
   }
 
   private toLocation(input: Partial<WeatherLocationInput>): WeatherLocation {

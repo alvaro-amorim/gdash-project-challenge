@@ -164,73 +164,97 @@ describe('WeatherService', () => {
     expect(service).toBeDefined();
   });
 
-  it('bootstraps missing history into Mongo and reuses stored data on later requests', async () => {
-    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        hourly: {
-          time: [
-            '2026-03-24T00:00',
-            '2026-03-24T01:00',
-            '2026-03-24T02:00',
-            '2026-03-24T03:00',
-            '2026-03-24T04:00',
-            '2026-03-24T05:00',
-          ],
-          temperature_2m: [25, 24, 23, 22, 21, 20],
-          relative_humidity_2m: [68, 69, 70, 71, 72, 73],
-          precipitation: [0, 0, 0, 0, 0, 0],
-          wind_speed_10m: [8, 8, 7, 7, 6, 6],
-          is_day: [0, 0, 0, 0, 1, 1],
-        },
-      }),
-    } as Response);
+  it('imports synced records and serves stored history from Mongo', async () => {
+    await service.importMany([
+      {
+        ...DEFAULT_LOCATION,
+        temp: 25,
+        humidity: 68,
+        wind_speed: 8,
+        precipitation: 0,
+        is_day: 1,
+        collected_at: '2026-03-24T00:00',
+      },
+      {
+        ...DEFAULT_LOCATION,
+        temp: 24,
+        humidity: 70,
+        wind_speed: 7,
+        precipitation: 0,
+        is_day: 1,
+        collected_at: '2026-03-24T01:00',
+      },
+    ]);
 
-    const first = await service.getHistory({
-      ...DEFAULT_LOCATION,
-      startDate: '2026-03-24',
-      endDate: '2026-03-24',
-    });
-    const second = await service.getHistory({
+    const history = await service.getHistory({
       ...DEFAULT_LOCATION,
       startDate: '2026-03-24',
       endDate: '2026-03-24',
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(first.points).toHaveLength(6);
-    expect(second.points).toHaveLength(6);
-    expect(weatherModel.records).toHaveLength(6);
+    expect(history.points).toHaveLength(2);
+    expect(history.points[0].temp).toBe(25);
+    expect(history.points[1].temp).toBe(24);
+    expect(weatherModel.records).toHaveLength(2);
   });
 
-  it('stores the live snapshot and serves it from Mongo while the record is still fresh', async () => {
-    const currentTimestamp = new Date().toISOString().slice(0, 16);
-    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        current: {
-          temperature_2m: 26.5,
-          relative_humidity_2m: 58,
-          wind_speed_10m: 8.4,
-          precipitation: 0,
-          is_day: 1,
-          time: currentTimestamp,
-        },
-        daily: {
-          temperature_2m_max: [27.5],
-          temperature_2m_min: [18.1],
-          precipitation_sum: [0],
-        },
-      }),
-    } as Response);
+  it('returns the latest stored live reading after import', async () => {
+    await service.importMany([
+      {
+        ...DEFAULT_LOCATION,
+        temp: 22,
+        humidity: 80,
+        wind_speed: 5,
+        precipitation: 0,
+        is_day: 0,
+        collected_at: '2026-03-24T00:00',
+      },
+      {
+        ...DEFAULT_LOCATION,
+        temp: 27,
+        humidity: 60,
+        wind_speed: 9,
+        precipitation: 0,
+        is_day: 1,
+        collected_at: '2026-03-24T12:00',
+      },
+    ]);
 
-    const first = await service.getLiveWeather(DEFAULT_LOCATION);
-    const second = await service.getLiveWeather(DEFAULT_LOCATION);
+    const live = await service.getLiveWeather(DEFAULT_LOCATION);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(first.temp).toBe(26.5);
-    expect(second.temp).toBe(26.5);
-    expect(first.insights).toHaveLength(3);
-    expect(weatherModel.records).toHaveLength(1);
+    expect(live.temp).toBe(27);
+    expect(live.humidity).toBe(60);
+    expect(live.insights).toHaveLength(3);
+    expect(live.collected_at).toBe('2026-03-24T12:00');
+  });
+
+  it('reports tracked sync locations with the latest stored timestamp', async () => {
+    usersService.findTrackedWeatherLocations.mockResolvedValue([
+      {
+        cityName: 'Juiz de Fora',
+        stateName: 'Minas Gerais',
+        stateCode: 'MG',
+        latitude: -21.7642,
+        longitude: -43.3503,
+        timezone: 'America/Sao_Paulo',
+      },
+    ]);
+
+    await service.importMany([
+      {
+        ...DEFAULT_LOCATION,
+        temp: 27,
+        humidity: 60,
+        wind_speed: 9,
+        precipitation: 0,
+        is_day: 1,
+        collected_at: '2026-03-24T12:00',
+      },
+    ]);
+
+    const locations = await service.getTrackedLocationsForSync();
+
+    expect(locations[0].cityName).toBe('Juiz de Fora');
+    expect(locations[0].latestCollectedAt).toBe('2026-03-24T12:00');
   });
 });
