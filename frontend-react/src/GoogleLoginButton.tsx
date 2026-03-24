@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react';
-import { GOOGLE_CLIENT_ID } from './api';
+import { useEffect, useEffectEvent, useRef } from 'react';
 
 declare global {
   interface Window {
@@ -21,20 +20,33 @@ declare global {
 }
 
 interface GoogleLoginButtonProps {
+  clientId: string;
   disabled: boolean;
   onCredential: (credential: string) => void;
   onError: (message: string) => void;
 }
 
 export function GoogleLoginButton({
+  clientId,
   disabled,
   onCredential,
   onError,
 }: GoogleLoginButtonProps) {
   const buttonRef = useRef<HTMLDivElement | null>(null);
+  const handleCredential = useEffectEvent((response: { credential?: string }) => {
+    if (!response.credential) {
+      onError('Nao foi possivel autenticar com o Google.');
+      return;
+    }
+
+    onCredential(response.credential);
+  });
+  const handleLoadError = useEffectEvent(() => {
+    onError('Falha ao carregar o login com Google.');
+  });
 
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || !buttonRef.current) {
+    if (!clientId || !buttonRef.current) {
       return;
     }
 
@@ -85,15 +97,8 @@ export function GoogleLoginButton({
         buttonRef.current.innerHTML = '';
 
         window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (response) => {
-            if (!response.credential) {
-              onError('Nao foi possivel autenticar com o Google.');
-              return;
-            }
-
-            onCredential(response.credential);
-          },
+          client_id: clientId,
+          callback: handleCredential,
         });
 
         window.google.accounts.id.renderButton(buttonRef.current, {
@@ -104,16 +109,14 @@ export function GoogleLoginButton({
           width: 320,
         });
       })
-      .catch(() => {
-        onError('Falha ao carregar o login com Google.');
-      });
+      .catch(() => handleLoadError());
 
     return () => {
       cancelled = true;
     };
-  }, [onCredential, onError]);
+  }, [clientId]);
 
-  if (!GOOGLE_CLIENT_ID) {
+  if (!clientId) {
     return null;
   }
 

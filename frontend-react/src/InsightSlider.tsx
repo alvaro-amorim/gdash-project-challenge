@@ -4,15 +4,12 @@ interface InsightSliderProps {
   insights: string[];
 }
 
+const FALLBACK_INSIGHTS = ['Aguardando analise do clima atual.'];
+
 export function InsightSlider({ insights }: InsightSliderProps) {
-  const safeInsights = insights.length > 0 ? insights : ['Aguardando analise do clima atual.'];
+  const safeInsights = insights.length > 0 ? insights : FALLBACK_INSIGHTS;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [visible, setVisible] = useState(true);
-
-  useEffect(() => {
-    setCurrentIndex(0);
-    setVisible(true);
-  }, [safeInsights.join('|')]);
 
   useEffect(() => {
     if (safeInsights.length <= 1) {

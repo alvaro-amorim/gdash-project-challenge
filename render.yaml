@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: gdash-api
+    runtime: node
+    plan: free
+    rootDir: backend-nestjs
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /
+    envVars:
+      - key: TZ
+        value: America/Sao_Paulo
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGO_URI
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_NAME
+        value: Admin GDASH
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

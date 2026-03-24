@@ -18,6 +18,14 @@ type AuthResponse = {
   user: Record<string, unknown>;
 };
 
+type EmailDeliveryMode = 'resend' | 'smtp' | 'disabled';
+
+type LoginCodeEmailMessage = {
+  subject: string;
+  text: string;
+  html: string;
+};
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -42,7 +50,15 @@ export class AuthService {
     await this.usersService.save(user);
 
     const emailSent = await this.sendLoginCodeEmail(user, loginCode);
-    return emailSent ? { sent: true } : { sent: false, devCode: loginCode };
+    if (emailSent) {
+      return { sent: true };
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      throw new InternalServerErrorException('Email login is temporarily unavailable');
+    }
+
+    return { sent: false, devCode: loginCode };
   }
 
   async verifyLoginCode(email: string, code: string): Promise<AuthResponse> {
@@ -93,18 +109,16 @@ export class AuthService {
     let user = await this.usersService.findByEmail(payload.email);
 
     if (!user) {
-      user = await this.usersService.createRaw(
-        {
-          name: payload.name || payload.email.split('@')[0],
-          email: payload.email,
-          avatarUrl: payload.picture || undefined,
-          role: 'user',
-          provider: 'google',
-          googleId: payload.sub,
-          emailVerified: true,
-          createdBy: 'google-oauth',
-        },
-      );
+      user = await this.usersService.createRaw({
+        name: payload.name || payload.email.split('@')[0],
+        email: payload.email,
+        avatarUrl: payload.picture || undefined,
+        role: 'user',
+        provider: 'google',
+        googleId: payload.sub,
+        emailVerified: true,
+        createdBy: 'google-oauth',
+      });
     }
 
     if (!user.isActive) {
@@ -131,6 +145,16 @@ export class AuthService {
     return this.usersService.updateProfile(userId, updateUserDto);
   }
 
+  getPublicConfig() {
+    const emailDeliveryMode = this.resolveEmailDeliveryMode();
+
+    return {
+      googleClientId: process.env.GOOGLE_CLIENT_ID?.trim() || '',
+      emailLoginEnabled: emailDeliveryMode !== 'disabled',
+      emailDeliveryMode,
+    };
+  }
+
   private buildAuthResponse(user: UserDocument): AuthResponse {
     const payload = {
       sub: String(user._id),
@@ -150,13 +174,95 @@ export class AuthService {
   }
 
   private async sendLoginCodeEmail(user: UserDocument, loginCode: string): Promise<boolean> {
-    const fromEmail = process.env.SMTP_FROM_EMAIL;
-    const smtpHost = process.env.SMTP_HOST;
+    const message = this.buildLoginCodeEmailMessage(loginCode);
+
+    // Free hosts like Render block outbound SMTP, so prefer HTTPS delivery when available.
+    if (await this.sendLoginCodeWithResend(user, message)) {
+      return true;
+    }
+
+    if (await this.sendLoginCodeWithSmtp(user, message)) {
+      return true;
+    }
+
+    this.logger.warn(`Email provider not configured. Login code for ${user.email}: ${loginCode}`);
+    return false;
+  }
+
+  private resolveEmailDeliveryMode(): EmailDeliveryMode {
+    const resendApiKey = process.env.RESEND_API_KEY?.trim();
+    const resendFromEmail = process.env.RESEND_FROM_EMAIL?.trim();
+
+    if (resendApiKey && resendFromEmail) {
+      return 'resend';
+    }
+
+    const smtpHost = process.env.SMTP_HOST?.trim();
+    const smtpFromEmail = process.env.SMTP_FROM_EMAIL?.trim();
+
+    if (smtpHost && smtpFromEmail) {
+      return 'smtp';
+    }
+
+    return 'disabled';
+  }
+
+  private buildLoginCodeEmailMessage(loginCode: string): LoginCodeEmailMessage {
+    return {
+      subject: 'Seu codigo de acesso GDASH',
+      text: `Seu codigo de acesso e ${loginCode}. Ele expira em 10 minutos.`,
+      html: `<p>Seu codigo de acesso e <strong>${loginCode}</strong>.</p><p>Ele expira em 10 minutos.</p>`,
+    };
+  }
+
+  private async sendLoginCodeWithResend(
+    user: UserDocument,
+    message: LoginCodeEmailMessage,
+  ): Promise<boolean> {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    const fromEmail = process.env.RESEND_FROM_EMAIL?.trim();
+
+    if (!apiKey || !fromEmail) {
+      return false;
+    }
+
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [user.email],
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        this.logger.warn(`Resend request failed with status ${response.status}. ${errorBody}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.warn(`Failed to send email via Resend. ${error}`);
+      return false;
+    }
+  }
+
+  private async sendLoginCodeWithSmtp(
+    user: UserDocument,
+    message: LoginCodeEmailMessage,
+  ): Promise<boolean> {
+    const fromEmail = process.env.SMTP_FROM_EMAIL?.trim();
+    const smtpHost = process.env.SMTP_HOST?.trim();
 
     if (!fromEmail || !smtpHost) {
-      this.logger.warn(
-        `SMTP not configured. Login code for ${user.email}: ${loginCode}`,
-      );
       return false;
     }
 
@@ -178,14 +284,14 @@ export class AuthService {
       await transporter.sendMail({
         from: fromEmail,
         to: user.email,
-        subject: 'Seu código de acesso GDASH',
-        text: `Seu código de acesso é ${loginCode}. Ele expira em 10 minutos.`,
-        html: `<p>Seu código de acesso é <strong>${loginCode}</strong>.</p><p>Ele expira em 10 minutos.</p>`,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
       });
 
       return true;
     } catch (error) {
-      this.logger.warn(`Failed to send email via SMTP. Using dev fallback. ${error}`);
+      this.logger.warn(`Failed to send email via SMTP. ${error}`);
       return false;
     }
   }

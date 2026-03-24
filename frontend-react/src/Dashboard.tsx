@@ -450,6 +450,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
 
                 <div className="grid gap-3 xl:grid-cols-[1.25fr_0.85fr_0.85fr_auto_auto_auto]">
                   <CitySearchInput
+                    key={selectedLocation.displayName}
                     selectedLabel={selectedLocation.displayName}
                     onSelect={handleCitySelect}
                     disabled={savingCity}
@@ -570,6 +571,11 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                           </div>
 
                           <InsightSlider
+                            key={
+                              isLiveWeatherData(latestReading)
+                                ? latestReading.insights.join('|')
+                                : 'history-insights'
+                            }
                             insights={
                               isLiveWeatherData(latestReading)
                                 ? latestReading.insights

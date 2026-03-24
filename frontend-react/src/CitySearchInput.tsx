@@ -22,18 +22,12 @@ export function CitySearchInput({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setQuery(selectedLabel || '');
-  }, [selectedLabel]);
-
-  useEffect(() => {
     if (!open || disabled) {
       return;
     }
 
     const trimmedQuery = query.trim();
     if (trimmedQuery.length < 2) {
-      setResults([]);
-      setError('');
       return;
     }
 
@@ -71,8 +65,15 @@ export function CitySearchInput({
           disabled={disabled}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
-            setQuery(event.target.value);
+            const nextQuery = event.target.value;
+
+            setQuery(nextQuery);
             setOpen(true);
+
+            if (nextQuery.trim().length < 2) {
+              setResults([]);
+              setError('');
+            }
           }}
           placeholder={placeholder}
           className="min-w-0 flex-1 bg-transparent px-0 py-3 text-sm text-brand-dark outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"

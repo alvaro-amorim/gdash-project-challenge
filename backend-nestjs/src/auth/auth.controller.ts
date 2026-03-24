@@ -68,6 +68,12 @@ export class AuthController {
     return this.authService.loginWithGoogle(body.credential);
   }
 
+  @Get('public-config')
+  @ApiOperation({ summary: 'Return public authentication configuration' })
+  getPublicConfig() {
+    return this.authService.getPublicConfig();
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

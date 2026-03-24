@@ -22,7 +22,7 @@ O sistema hoje atende dois fluxos principais:
 - Exportacao de dados em CSV e XLSX.
 - Painel admin com usuarios cadastrados, visitas e usuarios ativos.
 - Fallback local para insights quando a IA nao estiver configurada ou falhar.
-- Fallback de login em desenvolvimento: se SMTP nao estiver configurado, o backend retorna o codigo de acesso para uso local.
+- Fallback de login em desenvolvimento: se nenhum provedor de email estiver configurado, o backend retorna o codigo de acesso para uso local.
 
 ## Arquitetura
 
@@ -67,7 +67,7 @@ O sistema hoje atende dois fluxos principais:
 
 ### 1. Criar o arquivo `.env`
 
-Crie um arquivo `.env` na raiz do projeto. Exemplo:
+Crie um arquivo `.env` na raiz do projeto usando [.env.example](./.env.example) como base. Exemplo:
 
 ```env
 GEMINI_API_KEY=
@@ -85,7 +85,10 @@ ADMIN_EMAIL=seu-email@exemplo.com
 ADMIN_NAME=Seu Nome
 
 GOOGLE_CLIENT_ID=
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=
 VITE_API_BASE_URL=http://localhost:3000
+VITE_GOOGLE_CLIENT_ID=
 
 SMTP_HOST=
 SMTP_PORT=587
@@ -127,7 +130,12 @@ Quando o backend iniciar novamente, ele recria automaticamente o admin definido 
 2. O admin pode acessar o painel e criar novos usuarios.
 3. Cada usuario entra informando o email e recebendo um codigo de 6 digitos.
 
-Se `SMTP_HOST` e `SMTP_FROM_EMAIL` nao estiverem configurados, o backend entra em fallback de desenvolvimento e retorna o codigo para login local.
+Se nenhum provedor de email estiver configurado, o backend entra em fallback de desenvolvimento e retorna o codigo para login local.
+
+### Provedores de email
+
+- `RESEND_API_KEY` + `RESEND_FROM_EMAIL`: melhor opcao para hosts gratis que bloqueiam SMTP.
+- `SMTP_HOST` + `SMTP_FROM_EMAIL`: continua suportado para ambientes que permitem saida SMTP.
 
 ### Google
 
@@ -183,7 +191,18 @@ Se `GOOGLE_CLIENT_ID` estiver vazio, o app continua funcionando normalmente sem 
 - `GET /analytics/overview`
 - `GET /analytics/visits`
 
-## Deploy no Vercel
+## Deploy Gratis Recomendado
+
+Para publicar o app com o menor custo e a menor quantidade de infraestrutura, a recomendacao atual e:
+
+- frontend no Vercel
+- backend no Render Free
+- banco no MongoDB Atlas Free
+- login com Google como opcao mais simples
+
+Se quiser o passo a passo completo, veja [docs/deploy-gratis.md](./docs/deploy-gratis.md).
+
+## Deploy do Frontend no Vercel
 
 O repositorio tem um `vercel.json` na raiz para fazer o deploy do frontend que esta dentro de `frontend-react`.
 
@@ -202,7 +221,8 @@ VITE_API_BASE_URL=https://seu-backend-publico.com
 ### Importante
 
 - O Vercel publica apenas o frontend.
-- O backend, MongoDB, RabbitMQ, worker e coletor precisam estar hospedados em outro ambiente.
+- O backend e o MongoDB precisam estar hospedados em outro ambiente.
+- Para o deploy gratis inicial, `RabbitMQ`, `worker-go` e `collector-python` podem ficar de fora.
 - Se `VITE_API_BASE_URL` nao apontar para uma API publica valida, o frontend sobe mas nao consegue autenticar nem carregar clima.
 
 ## Estrutura de Pastas

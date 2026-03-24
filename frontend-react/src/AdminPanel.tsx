@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { requestApi } from './api';
 import type { AdminOverview, AuthUser, VisitRecord } from './types';
 
@@ -17,7 +17,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<'admin' | 'user'>('user');
 
-  const loadAdminData = async () => {
+  const loadAdminData = useCallback(async () => {
     setLoading(true);
 
     try {
@@ -36,11 +36,11 @@ export function AdminPanel({ token }: AdminPanelProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     loadAdminData().catch(() => undefined);
-  }, [token]);
+  }, [loadAdminData]);
 
   const handleCreateUser = async (e: FormEvent) => {
     e.preventDefault();

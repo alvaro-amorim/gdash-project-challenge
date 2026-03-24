@@ -1,6 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import loginLogo from './assets/logo2.png';
-import { GOOGLE_CLIENT_ID, requestApi } from './api';
+import {
+  GOOGLE_CLIENT_ID,
+  fetchPublicAuthConfig,
+  getErrorMessage,
+  getRuntimeConfigWarnings,
+  requestApi,
+} from './api';
 import { GoogleLoginButton } from './GoogleLoginButton';
 import type { AuthApiResponse, AuthState } from './types';
 
@@ -16,6 +22,31 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [info, setInfo] = useState('');
   const [devCode, setDevCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState(GOOGLE_CLIENT_ID);
+  const [emailLoginEnabled, setEmailLoginEnabled] = useState(true);
+  const configWarnings = getRuntimeConfigWarnings();
+
+  useEffect(() => {
+    let active = true;
+
+    fetchPublicAuthConfig()
+      .then((config) => {
+        if (!active) {
+          return;
+        }
+
+        if (!GOOGLE_CLIENT_ID && config.googleClientId) {
+          setGoogleClientId(config.googleClientId);
+        }
+
+        setEmailLoginEnabled(config.emailLoginEnabled);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSendCode = async (e: FormEvent) => {
     e.preventDefault();
@@ -42,7 +73,12 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setDevCode(response.devCode || '');
     } catch (requestError) {
       console.error(requestError);
-      setError('Nao foi possivel enviar o codigo. Confira se o usuario existe.');
+      setError(
+        getErrorMessage(
+          requestError,
+          'Nao foi possivel enviar o codigo. Confira se o usuario existe.',
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -65,7 +101,9 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       });
     } catch (requestError) {
       console.error(requestError);
-      setError('Codigo invalido ou expirado. Tente solicitar um novo.');
+      setError(
+        getErrorMessage(requestError, 'Codigo invalido ou expirado. Tente solicitar um novo.'),
+      );
     } finally {
       setLoading(false);
     }
@@ -88,7 +126,12 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       });
     } catch (requestError) {
       console.error(requestError);
-      setError('Falha ao autenticar com Google. Verifique a configuracao do cliente OAuth.');
+      setError(
+        getErrorMessage(
+          requestError,
+          'Falha ao autenticar com Google. Verifique a configuracao do cliente OAuth.',
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -218,15 +261,33 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 </div>
               ) : null}
 
+              {configWarnings.length > 0 ? (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-800">
+                  {configWarnings.map((warning) => (
+                    <p key={warning}>{warning}</p>
+                  ))}
+                </div>
+              ) : null}
+
+              {!emailLoginEnabled && phase === 'request' ? (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-800">
+                  {googleClientId
+                    ? 'Este deploy nao tem envio de email configurado. Use o login Google abaixo para acessar sem custo.'
+                    : 'Este deploy nao tem envio de email configurado. Ative Google OAuth, Resend ou SMTP no backend para liberar o acesso.'}
+                </div>
+              ) : null}
+
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (phase === 'request' && !emailLoginEnabled)}
                 className="primary-button w-full rounded-[24px] px-5 py-4 disabled:opacity-50"
               >
                 {loading
                   ? 'Processando...'
                   : phase === 'request'
-                    ? 'Receber Codigo por Email'
+                    ? emailLoginEnabled
+                      ? 'Receber Codigo por Email'
+                      : 'Email indisponivel neste deploy'
                     : 'Entrar com Codigo'}
               </button>
 
@@ -253,13 +314,14 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 ou entre com Google
               </p>
               <GoogleLoginButton
+                clientId={googleClientId}
                 disabled={loading}
                 onCredential={handleGoogleCredential}
                 onError={setError}
               />
-              {!GOOGLE_CLIENT_ID ? (
+              {!googleClientId ? (
                 <p className="mt-4 text-center text-xs leading-5 text-brand-muted">
-                  Login Google sera exibido assim que o client ID for configurado.
+                  Login Google sera exibido assim que o client ID for configurado no backend ou no frontend.
                 </p>
               ) : null}
             </div>
