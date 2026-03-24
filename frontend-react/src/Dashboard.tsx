@@ -3,6 +3,7 @@ import dashboardLogo from './assets/logo.png';
 import { API_BASE_URL, requestApi } from './api';
 import { CitySearchInput } from './CitySearchInput';
 import { InsightSlider } from './InsightSlider';
+import { requestOpenMeteoHistory, requestOpenMeteoLive } from './openMeteoFallback';
 import { ProfilePanel } from './ProfilePanel';
 import { clearVisitSessionId, getVisitSessionId } from './storage';
 import type {
@@ -178,8 +179,16 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
         const response = await requestApi<LiveWeatherData>(`/weather/live?${locationQuery}`, {}, auth.token);
         setLiveWeather(response);
       } catch (requestError) {
-        console.error(requestError);
-        setDataError('Nao foi possivel carregar a leitura atual desta cidade.');
+        console.error('Backend live weather failed, falling back to browser request.', requestError);
+
+        try {
+          const fallbackResponse = await requestOpenMeteoLive(selectedLocation);
+          setLiveWeather(fallbackResponse);
+          setDataError('');
+        } catch (fallbackError) {
+          console.error(fallbackError);
+          setDataError('Nao foi possivel carregar a leitura atual desta cidade.');
+        }
       } finally {
         setLoadingLive(false);
       }
@@ -212,8 +221,22 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
           setEndDate('');
         });
       } catch (requestError) {
-        console.error(requestError);
-        setDataError('Nao foi possivel carregar o historico da cidade selecionada.');
+        console.error('Backend history failed, falling back to browser request.', requestError);
+
+        try {
+          const fallbackResponse = await requestOpenMeteoHistory(selectedLocation, { days: 30 });
+          startTransition(() => {
+            setHistoryBase(fallbackResponse.points);
+            setHistoryData(fallbackResponse.points);
+            setRangeFilter('30d');
+            setStartDate('');
+            setEndDate('');
+          });
+          setDataError('');
+        } catch (fallbackError) {
+          console.error(fallbackError);
+          setDataError('Nao foi possivel carregar o historico da cidade selecionada.');
+        }
       } finally {
         setLoadingHistory(false);
       }
@@ -278,8 +301,19 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
         setHistoryData(response.points);
       });
     } catch (requestError) {
-      console.error(requestError);
-      setDataError('Nao foi possivel buscar o recorte solicitado.');
+      console.error('Backend custom history failed, falling back to browser request.', requestError);
+
+      try {
+        const fallbackResponse = await requestOpenMeteoHistory(selectedLocation, { startDate, endDate });
+        startTransition(() => {
+          setRangeFilter('custom');
+          setHistoryData(fallbackResponse.points);
+        });
+        setDataError('');
+      } catch (fallbackError) {
+        console.error(fallbackError);
+        setDataError('Nao foi possivel buscar o recorte solicitado.');
+      }
     } finally {
       setLoadingHistory(false);
     }
