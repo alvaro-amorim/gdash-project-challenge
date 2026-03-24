@@ -57,12 +57,18 @@ type InsightCacheEntry = {
   source: 'ai' | 'fallback';
 };
 
+type ResponseCacheEntry<T> = {
+  expiresAt: number;
+  response: T;
+};
+
 const DEFAULT_CITY = 'Juiz de Fora';
 const DEFAULT_STATE_NAME = 'Minas Gerais';
 const DEFAULT_STATE_CODE = 'MG';
 const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
 const DEFAULT_LATITUDE = -21.7642;
 const DEFAULT_LONGITUDE = -43.3503;
+const LIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 const HISTORY_CACHE_TTL_MS = 10 * 60 * 1000;
 const INSIGHT_REFRESH_INTERVAL_MS = 20 * 60 * 1000;
 const FORECAST_FIELDS =
@@ -103,8 +109,11 @@ const BRAZIL_STATE_CODES: Record<string, string> = {
 @Injectable()
 export class WeatherService {
   private readonly logger = new Logger(WeatherService.name);
-  private readonly historyCache = new Map<string, { expiresAt: number; response: WeatherHistoryResponse }>();
+  private readonly liveCache = new Map<string, ResponseCacheEntry<WeatherLiveResponse>>();
+  private readonly historyCache = new Map<string, ResponseCacheEntry<WeatherHistoryResponse>>();
   private readonly insightCache = new Map<string, InsightCacheEntry>();
+  private readonly liveRequests = new Map<string, Promise<WeatherLiveResponse>>();
+  private readonly historyRequests = new Map<string, Promise<WeatherHistoryResponse>>();
 
   constructor(
     @InjectModel(Weather.name) private readonly weatherModel: Model<WeatherDocument>,
@@ -181,37 +190,26 @@ export class WeatherService {
 
   async getLiveWeather(input: WeatherLocationInput): Promise<WeatherLiveResponse> {
     const location = this.toLocation(input);
-    const url = new URL('https://api.open-meteo.com/v1/forecast');
-    url.searchParams.set('latitude', String(location.latitude));
-    url.searchParams.set('longitude', String(location.longitude));
-    url.searchParams.set('current', FORECAST_FIELDS);
-    url.searchParams.set('daily', DAILY_FIELDS);
-    url.searchParams.set('forecast_days', '1');
-    url.searchParams.set('timezone', location.timezone);
+    const cacheKey = this.toLocationKey(location);
+    const cached = this.liveCache.get(cacheKey);
 
-    const data = await this.fetchJson<Record<string, any>>(url.toString());
-    const current = data.current || {};
-    const daily = data.daily || {};
-    const activeUsersSummary = await this.analyticsService.getActiveUsersSummary();
-    const hasActiveViewer = Number(activeUsersSummary.activeUsers || 0) > 0;
-    const insightResult = await this.resolveInsightBundle(current, daily, location, hasActiveViewer);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.response;
+    }
 
-    return {
-      ...location,
-      temp: this.toNumber(current.temperature_2m),
-      humidity: this.toNumber(current.relative_humidity_2m),
-      wind_speed: this.toNumber(current.wind_speed_10m),
-      precipitation: this.toNumber(current.precipitation),
-      is_day: this.toNumber(current.is_day),
-      collected_at: current.time ? String(current.time) : new Date().toISOString(),
-      insight: insightResult.insights[0] || '',
-      insights: insightResult.insights,
-      insight_source: insightResult.source,
-      has_active_viewer: hasActiveViewer,
-      ai_generated_at: insightResult.generatedAt
-        ? new Date(insightResult.generatedAt).toISOString()
-        : null,
-    };
+    const pendingRequest = this.liveRequests.get(cacheKey);
+    if (pendingRequest) {
+      return pendingRequest;
+    }
+
+    const request = this.fetchLiveWeather(location, cacheKey, cached);
+    this.liveRequests.set(cacheKey, request);
+
+    try {
+      return await request;
+    } finally {
+      this.liveRequests.delete(cacheKey);
+    }
   }
 
   async getHistory(input: WeatherLocationInput & { startDate?: string; endDate?: string; days?: number }) {
@@ -228,43 +226,132 @@ export class WeatherService {
       return cached.response;
     }
 
-    const url = new URL('https://archive-api.open-meteo.com/v1/archive');
-    url.searchParams.set('latitude', String(location.latitude));
-    url.searchParams.set('longitude', String(location.longitude));
-    url.searchParams.set('start_date', startDate);
-    url.searchParams.set('end_date', endDate);
-    url.searchParams.set('hourly', HOURLY_FIELDS);
-    url.searchParams.set('timezone', location.timezone);
+    const pendingRequest = this.historyRequests.get(cacheKey);
+    if (pendingRequest) {
+      return pendingRequest;
+    }
 
-    const data = await this.fetchJson<Record<string, any>>(url.toString());
-    const hourly = data.hourly || {};
-    const times = Array.isArray(hourly.time) ? hourly.time : [];
+    const request = this.fetchHistory(location, startDate, endDate, cacheKey, cached);
+    this.historyRequests.set(cacheKey, request);
 
-    const points: WeatherHistoryPoint[] = times.map((collectedAt: string, index: number) => ({
-      collected_at: collectedAt,
-      temp: this.toNumber(hourly.temperature_2m?.[index]),
-      humidity: this.toNumber(hourly.relative_humidity_2m?.[index]),
-      wind_speed: this.toNumber(hourly.wind_speed_10m?.[index]),
-      precipitation: this.toNumber(hourly.precipitation?.[index]),
-      is_day: this.toNumber(hourly.is_day?.[index]),
-    }));
+    try {
+      return await request;
+    } finally {
+      this.historyRequests.delete(cacheKey);
+    }
+  }
 
-    const response: WeatherHistoryResponse = {
-      location,
-      range: {
-        startDate,
-        endDate,
-        pointCount: points.length,
-      },
-      points,
-    };
+  private async fetchLiveWeather(
+    location: WeatherLocation,
+    cacheKey: string,
+    staleCache?: ResponseCacheEntry<WeatherLiveResponse>,
+  ): Promise<WeatherLiveResponse> {
+    try {
+      const url = new URL('https://api.open-meteo.com/v1/forecast');
+      url.searchParams.set('latitude', String(location.latitude));
+      url.searchParams.set('longitude', String(location.longitude));
+      url.searchParams.set('current', FORECAST_FIELDS);
+      url.searchParams.set('daily', DAILY_FIELDS);
+      url.searchParams.set('forecast_days', '1');
+      url.searchParams.set('timezone', location.timezone);
 
-    this.historyCache.set(cacheKey, {
-      expiresAt: Date.now() + HISTORY_CACHE_TTL_MS,
-      response,
-    });
+      const data = await this.fetchJson<Record<string, any>>(url.toString());
+      const current = data.current || {};
+      const daily = data.daily || {};
+      const activeUsersSummary = await this.analyticsService.getActiveUsersSummary();
+      const hasActiveViewer = Number(activeUsersSummary.activeUsers || 0) > 0;
+      const insightResult = await this.resolveInsightBundle(current, daily, location, hasActiveViewer);
 
-    return response;
+      const response: WeatherLiveResponse = {
+        ...location,
+        temp: this.toNumber(current.temperature_2m),
+        humidity: this.toNumber(current.relative_humidity_2m),
+        wind_speed: this.toNumber(current.wind_speed_10m),
+        precipitation: this.toNumber(current.precipitation),
+        is_day: this.toNumber(current.is_day),
+        collected_at: current.time ? String(current.time) : new Date().toISOString(),
+        insight: insightResult.insights[0] || '',
+        insights: insightResult.insights,
+        insight_source: insightResult.source,
+        has_active_viewer: hasActiveViewer,
+        ai_generated_at: insightResult.generatedAt
+          ? new Date(insightResult.generatedAt).toISOString()
+          : null,
+      };
+
+      this.liveCache.set(cacheKey, {
+        expiresAt: Date.now() + LIVE_CACHE_TTL_MS,
+        response,
+      });
+
+      return response;
+    } catch (error) {
+      if (staleCache) {
+        this.logger.warn(
+          `Live weather provider failed for ${location.displayName}. Returning cached response instead. ${String(error)}`,
+        );
+        return staleCache.response;
+      }
+
+      throw error;
+    }
+  }
+
+  private async fetchHistory(
+    location: WeatherLocation,
+    startDate: string,
+    endDate: string,
+    cacheKey: string,
+    staleCache?: ResponseCacheEntry<WeatherHistoryResponse>,
+  ): Promise<WeatherHistoryResponse> {
+    try {
+      const url = new URL('https://archive-api.open-meteo.com/v1/archive');
+      url.searchParams.set('latitude', String(location.latitude));
+      url.searchParams.set('longitude', String(location.longitude));
+      url.searchParams.set('start_date', startDate);
+      url.searchParams.set('end_date', endDate);
+      url.searchParams.set('hourly', HOURLY_FIELDS);
+      url.searchParams.set('timezone', location.timezone);
+
+      const data = await this.fetchJson<Record<string, any>>(url.toString());
+      const hourly = data.hourly || {};
+      const times = Array.isArray(hourly.time) ? hourly.time : [];
+
+      const points: WeatherHistoryPoint[] = times.map((collectedAt: string, index: number) => ({
+        collected_at: collectedAt,
+        temp: this.toNumber(hourly.temperature_2m?.[index]),
+        humidity: this.toNumber(hourly.relative_humidity_2m?.[index]),
+        wind_speed: this.toNumber(hourly.wind_speed_10m?.[index]),
+        precipitation: this.toNumber(hourly.precipitation?.[index]),
+        is_day: this.toNumber(hourly.is_day?.[index]),
+      }));
+
+      const response: WeatherHistoryResponse = {
+        location,
+        range: {
+          startDate,
+          endDate,
+          pointCount: points.length,
+        },
+        points,
+      };
+
+      this.historyCache.set(cacheKey, {
+        expiresAt: Date.now() + HISTORY_CACHE_TTL_MS,
+        response,
+      });
+
+      return response;
+    } catch (error) {
+      if (staleCache) {
+        this.logger.warn(
+          `History provider failed for ${location.displayName}. Returning cached response instead. ${String(error)}`,
+        );
+        return staleCache.response;
+      }
+
+      throw error;
+    }
   }
 
   private async resolveInsightBundle(
@@ -533,7 +620,12 @@ export class WeatherService {
   }
 
   private async fetchJson<T>(url: string): Promise<T> {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'gdash-weather/1.0',
+      },
+    });
     if (!response.ok) {
       throw new Error(`Weather provider request failed with status ${response.status}`);
     }
