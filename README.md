@@ -83,10 +83,13 @@ TZ=America/Sao_Paulo
 JWT_SECRET=troque_esta_chave
 ADMIN_EMAIL=seu-email@exemplo.com
 ADMIN_NAME=Seu Nome
+API_PUBLIC_URL=http://localhost:3000
+CORS_ORIGIN=http://localhost:5173
+TRUST_PROXY=false
 
 GOOGLE_CLIENT_ID=
 RESEND_API_KEY=
-RESEND_FROM_EMAIL=
+RESEND_FROM_EMAIL=GDASH <noreply@seu-dominio.com>
 VITE_API_BASE_URL=http://localhost:3000
 VITE_GOOGLE_CLIENT_ID=
 
@@ -199,6 +202,12 @@ Para publicar o app com o menor custo e a menor quantidade de infraestrutura, a 
 - backend no Render Free
 - banco no MongoDB Atlas Free
 - login com Google como opcao mais simples
+
+Se voce tem dominio proprio, a estrutura recomendada e:
+
+- `app.seu-dominio.com` para o frontend
+- `api.seu-dominio.com` para o backend
+- `noreply@seu-dominio.com` para os emails transacionais
 
 Se quiser o passo a passo completo, veja [docs/deploy-gratis.md](./docs/deploy-gratis.md).
 

@@ -12,6 +12,12 @@ services:
         value: America/Sao_Paulo
       - key: JWT_SECRET
         generateValue: true
+      - key: API_PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: TRUST_PROXY
+        value: "true"
       - key: MONGO_URI
         sync: false
       - key: ADMIN_EMAIL

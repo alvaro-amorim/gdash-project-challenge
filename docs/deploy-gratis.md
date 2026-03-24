@@ -60,6 +60,16 @@ Voce pode deixar `collector-python`, `worker-go` e `RabbitMQ` de fora nesse prim
 - Banco: MongoDB Atlas M0
 - Email: Resend Free
 
+## Layout de dominio sugerido
+
+Se voce tem um dominio proprio, eu recomendo esta divisao:
+
+- Frontend: `app.seu-dominio.com`
+- Backend: `api.seu-dominio.com`
+- Email remetente: `noreply@seu-dominio.com`
+
+Assim voce separa interface, API e reputacao de email sem complicar o DNS.
+
 ## Passo 1. Subir o banco no MongoDB Atlas
 
 1. Crie um cluster free no Atlas.
@@ -86,13 +96,16 @@ Voce pode importar o repositorio usando o arquivo [render.yaml](../render.yaml) 
 - `JWT_SECRET`
 - `ADMIN_EMAIL`
 - `ADMIN_NAME`
+- `API_PUBLIC_URL=https://api.seu-dominio.com`
+- `CORS_ORIGIN=https://app.seu-dominio.com`
+- `TRUST_PROXY=true`
 
 ### Variaveis opcionais
 
 - `GOOGLE_CLIENT_ID`
 - `GEMINI_API_KEY`
 - `RESEND_API_KEY`
-- `RESEND_FROM_EMAIL`
+- `RESEND_FROM_EMAIL=GDASH <noreply@seu-dominio.com>`
 
 ### Qual login escolher
 
@@ -104,6 +117,14 @@ Depois do deploy, anote a URL publica do backend, por exemplo:
 ```text
 https://gdash-api.onrender.com
 ```
+
+## Passo 2.1. Adicionar dominio customizado no Render
+
+1. Entre no servico do backend no Render.
+2. Abra a secao de custom domains.
+3. Adicione `api.seu-dominio.com`.
+4. Crie no seu DNS o registro pedido pelo Render.
+5. Depois da validacao, atualize `API_PUBLIC_URL` para `https://api.seu-dominio.com`.
 
 ## Passo 3. Configurar Google login
 
@@ -122,7 +143,7 @@ O repositorio ja tem [vercel.json](../vercel.json) apontando para `frontend-reac
 
 ### Variavel obrigatoria no Vercel
 
-- `VITE_API_BASE_URL=https://sua-api-publica.onrender.com`
+- `VITE_API_BASE_URL=https://api.seu-dominio.com`
 
 ### Variavel opcional
 
@@ -130,15 +151,29 @@ O repositorio ja tem [vercel.json](../vercel.json) apontando para `frontend-reac
 
 Essa variavel e opcional porque o frontend tambem consegue ler o client id publico do backend.
 
+## Passo 4.1. Adicionar dominio customizado no Vercel
+
+1. Entre no projeto do frontend no Vercel.
+2. Adicione `app.seu-dominio.com` na area de domains.
+3. Crie no seu DNS o registro pedido pelo Vercel.
+4. Depois da validacao, confirme se o frontend abre em `https://app.seu-dominio.com`.
+
+## Passo 4.2. Configurar Resend com seu dominio
+
+1. No Resend, adicione seu dominio.
+2. Publique os registros DNS de verificacao pedidos pelo painel.
+3. Espere o dominio ficar validado.
+4. Configure `RESEND_FROM_EMAIL=GDASH <noreply@seu-dominio.com>` no Render.
+
 ## Passo 5. Fazer o smoke test
 
 Depois de publicar:
 
-1. Abra o frontend no dominio do Vercel.
+1. Abra `https://app.seu-dominio.com`.
 2. Verifique se o login Google aparece ou se o login por email mostra estado disponivel.
 3. Entre no app.
 4. Troque a cidade e confirme carregamento de `live` e `history`.
-5. Abra `/api` no backend para checar o Swagger.
+5. Abra `https://api.seu-dominio.com/api` para checar o Swagger.
 
 ## O que eu recomendo para a sua primeira versao online
 
