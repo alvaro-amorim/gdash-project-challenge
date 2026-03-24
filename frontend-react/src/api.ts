@@ -22,7 +22,7 @@ export function getRuntimeConfigWarnings() {
 
   if (!browserRunsLocally() && LOCAL_API_PATTERN.test(API_BASE_URL)) {
     warnings.push(
-      'A API publicada ainda aponta para localhost. Configure VITE_API_BASE_URL com a URL publica do backend.',
+      'A API publicada ainda aponta para localhost. Configure VITE_API_BASE_URL com a URL pública do backend.',
     );
   }
 

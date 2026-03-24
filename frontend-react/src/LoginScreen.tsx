@@ -67,8 +67,8 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setPhase('verify');
       setInfo(
         response.sent
-          ? 'Enviamos um codigo para o seu email.'
-          : 'SMTP nao configurado. O backend liberou um codigo de desenvolvimento para facilitar o teste local.',
+          ? 'Enviamos um código para o seu e-mail.'
+          : 'SMTP não configurado. O backend liberou um código de desenvolvimento para facilitar o teste local.',
       );
       setDevCode(response.devCode || '');
     } catch (requestError) {
@@ -76,7 +76,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setError(
         getErrorMessage(
           requestError,
-          'Nao foi possivel enviar o codigo. Confira se o usuario existe.',
+          'Não foi possível enviar o código. Confira se o usuário existe.',
         ),
       );
     } finally {
@@ -102,7 +102,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     } catch (requestError) {
       console.error(requestError);
       setError(
-        getErrorMessage(requestError, 'Codigo invalido ou expirado. Tente solicitar um novo.'),
+        getErrorMessage(requestError, 'Código inválido ou expirado. Tente solicitar um novo.'),
       );
     } finally {
       setLoading(false);
@@ -129,7 +129,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setError(
         getErrorMessage(
           requestError,
-          'Falha ao autenticar com Google. Verifique a configuracao do cliente OAuth.',
+          'Falha ao autenticar com Google. Verifique a configuração do cliente OAuth.',
         ),
       );
     } finally {
@@ -151,18 +151,18 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 <img src={loginLogo} alt="GDASH Logo" className="h-10 w-10 object-contain" />
               </div>
               <div>
-                <p className="section-kicker text-white/60">Climate intelligence workspace</p>
+                <p className="section-kicker text-white/60">Painel climático</p>
                 <h1 className="mt-2 font-display text-4xl font-bold text-white sm:text-5xl">
-                  Um painel que parece produto, nao prototipo.
+                  Acompanhe clima, histórico e recortes por cidade em um único painel.
                 </h1>
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
               {[
-                ['Leitura viva', 'Clima atual, historico e cidade do usuario integrados em um unico fluxo.'],
-                ['IA em pacotes', 'A interface gira os insights em vez de travar um texto unico e cansativo.'],
-                ['Deploy leve', 'Frontend pode ir para Vercel e backend continuar separado sem custo alto.'],
+                ['Leitura ao vivo', 'Temperatura, umidade e vento ficam reunidos na mesma consulta.'],
+                ['Histórico por cidade', 'O painel troca de contexto sem perder o recorte do período escolhido.'],
+                ['Acesso simples', 'Você entra por e-mail e retoma a operação com a cidade salva no perfil.'],
               ].map(([title, description]) => (
                 <article key={title} className="rounded-[28px] border border-white/10 bg-white/10 p-5">
                   <p className="section-kicker text-white/55">{title}</p>
@@ -175,14 +175,13 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               <div className="rounded-[30px] border border-white/10 bg-white/10 p-6">
                 <p className="section-kicker text-white/55">Como entrar</p>
                 <p className="mt-3 max-w-xl text-lg leading-8 text-white/90">
-                  O acesso continua simples: email, codigo temporario e opcionalmente Google.
-                  O que muda aqui e a experiencia visual, nao a friccao.
+                  Use seu e-mail para receber um código de acesso. Se preferir, também é possível entrar com Google.
                 </p>
               </div>
               <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.05))] p-6">
-                <p className="section-kicker text-white/55">SMTP</p>
+                <p className="section-kicker text-white/55">Envio de e-mail</p>
                 <p className="mt-3 text-sm leading-7 text-white/80">
-                  Para Gmail, use senha de app. Nao use a senha normal da conta.
+                  Para Gmail, use uma senha de app. Não utilize a senha principal da conta.
                 </p>
               </div>
             </div>
@@ -207,7 +206,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </div>
 
             <p className="max-w-md text-sm leading-6 text-brand-muted">
-              Use o email do seu perfil para receber o codigo de acesso e liberar o workspace.
+              Use o e-mail do seu perfil para receber o código de acesso.
             </p>
           </div>
 
@@ -215,7 +214,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             <form onSubmit={phase === 'request' ? handleSendCode : handleVerifyCode} className="space-y-6">
               <div>
                 <label className="mb-2 block text-xs font-bold uppercase tracking-[0.22em] text-brand-muted">
-                  Email Corporativo
+                  E-mail
                 </label>
                 <input
                   type="email"
@@ -230,7 +229,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               {phase === 'verify' ? (
                 <div>
                   <label className="mb-2 block text-xs font-bold uppercase tracking-[0.22em] text-brand-muted">
-                    Codigo de Verificacao
+                    Código de verificação
                   </label>
                   <input
                     type="text"
@@ -272,8 +271,8 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               {!emailLoginEnabled && phase === 'request' ? (
                 <div className="rounded-3xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-800">
                   {googleClientId
-                    ? 'Este deploy nao tem envio de email configurado. Use o login Google abaixo para acessar sem custo.'
-                    : 'Este deploy nao tem envio de email configurado. Ative Google OAuth, Resend ou SMTP no backend para liberar o acesso.'}
+                    ? 'Este deploy não está com envio por e-mail ativo. Use o login com Google abaixo.'
+                    : 'Este deploy não está com envio por e-mail ativo. Configure Google OAuth, Resend ou SMTP no backend para liberar o acesso.'}
                 </div>
               ) : null}
 
@@ -286,9 +285,9 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   ? 'Processando...'
                   : phase === 'request'
                     ? emailLoginEnabled
-                      ? 'Receber Codigo por Email'
-                      : 'Email indisponivel neste deploy'
-                    : 'Entrar com Codigo'}
+                      ? 'Receber código por e-mail'
+                      : 'E-mail indisponível neste deploy'
+                    : 'Entrar com código'}
               </button>
 
               {phase === 'verify' ? (
@@ -321,7 +320,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               />
               {!googleClientId ? (
                 <p className="mt-4 text-center text-xs leading-5 text-brand-muted">
-                  Login Google sera exibido assim que o client ID for configurado no backend ou no frontend.
+                  O login com Google aparece assim que o client ID for configurado no backend ou no frontend.
                 </p>
               ) : null}
             </div>

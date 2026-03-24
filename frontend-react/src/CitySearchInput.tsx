@@ -12,7 +12,7 @@ interface CitySearchInputProps {
 export function CitySearchInput({
   selectedLabel,
   onSelect,
-  placeholder = 'Buscar cidade no Brasil',
+  placeholder = 'Busque uma cidade no Brasil',
   disabled = false,
 }: CitySearchInputProps) {
   const [query, setQuery] = useState(selectedLabel || '');
@@ -45,7 +45,7 @@ export function CitySearchInput({
         .catch((requestError) => {
           console.error(requestError);
           setResults([]);
-          setError('Nao foi possivel buscar cidades agora.');
+          setError('Não foi possível buscar cidades agora.');
         })
         .finally(() => setLoading(false));
     }, 280);
@@ -56,7 +56,7 @@ export function CitySearchInput({
   const showDropdown = open && !disabled && (loading || results.length > 0 || Boolean(error));
 
   return (
-    <div className="relative">
+    <div className="relative z-40">
       <div className="field-shell flex items-center gap-3 px-0 py-0">
         <span className="pl-4 text-sm text-brand-muted">BR</span>
         <input
@@ -86,7 +86,7 @@ export function CitySearchInput({
       </div>
 
       {showDropdown ? (
-        <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-[0_30px_50px_-30px_rgba(15,23,42,0.45)] backdrop-blur-xl">
+        <div className="absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-[0_30px_50px_-30px_rgba(15,23,42,0.45)] backdrop-blur-xl">
           {results.length > 0 ? (
             <div className="max-h-72 overflow-y-auto p-2">
               {results.map((city) => (

@@ -72,7 +72,7 @@ function getWeatherStatus(item: Pick<WeatherHistoryPoint, 'precipitation' | 'tem
   if (item.temp >= 25) return 'Tempo quente';
   if (item.temp <= 15) return 'Frente fria';
   if (item.wind_speed > 20) return 'Vento forte';
-  return 'Conforto estavel';
+  return 'Conforto estável';
 }
 
 function isLiveWeatherData(value: LiveWeatherData | WeatherHistoryPoint | null): value is LiveWeatherData {
@@ -187,7 +187,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
           setDataError('');
         } catch (fallbackError) {
           console.error(fallbackError);
-          setDataError('Nao foi possivel carregar a leitura atual desta cidade.');
+          setDataError('Não foi possível carregar a leitura atual desta cidade.');
         }
       } finally {
         setLoadingLive(false);
@@ -235,7 +235,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
           setDataError('');
         } catch (fallbackError) {
           console.error(fallbackError);
-          setDataError('Nao foi possivel carregar o historico da cidade selecionada.');
+          setDataError('Não foi possível carregar o histórico da cidade selecionada.');
         }
       } finally {
         setLoadingHistory(false);
@@ -312,7 +312,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
         setDataError('');
       } catch (fallbackError) {
         console.error(fallbackError);
-        setDataError('Nao foi possivel buscar o recorte solicitado.');
+        setDataError('Não foi possível buscar o recorte solicitado.');
       }
     } finally {
       setLoadingHistory(false);
@@ -322,7 +322,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
   const handleCitySelect = async (city: CityOption) => {
     setSelectedLocation(city);
     setSavingCity(true);
-    setCityMessage('Salvando cidade no seu perfil...');
+    setCityMessage('Salvando a cidade no seu perfil...');
 
     try {
       const updatedUser = await requestApi<AuthUser>(
@@ -342,10 +342,10 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
       );
 
       onAuthChange({ ...auth, user: updatedUser });
-      setCityMessage('Cidade salva. O painel agora acompanha esse municipio automaticamente.');
+      setCityMessage('Cidade salva. O painel passa a abrir com esse local por padrão.');
     } catch (requestError) {
       console.error(requestError);
-      setCityMessage('Nao foi possivel salvar a cidade no perfil, mas o painel foi atualizado localmente.');
+      setCityMessage('Não foi possível salvar a cidade no perfil, mas a visualização local foi atualizada.');
     } finally {
       setSavingCity(false);
     }
@@ -388,7 +388,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                     <img src={dashboardLogo} alt="GDASH Logo" className="h-9 w-9 object-contain" />
                   </div>
                   <div>
-                    <p className="section-kicker text-white/60">Climate control deck</p>
+                    <p className="section-kicker text-white/60">Painel climático</p>
                     <h1 className="mt-2 font-display text-3xl font-bold text-white">GDASH</h1>
                   </div>
                 </div>
@@ -404,7 +404,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                 <p className="mt-1 text-sm text-white/60">{auth.user.email}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <span className="status-pill border-white/10 bg-white/10 text-white/70">
-                    {auth.user.role === 'admin' ? 'admin' : 'usuario'}
+                    {auth.user.role === 'admin' ? 'admin' : 'usuário'}
                   </span>
                   <span className="status-pill border-white/10 bg-white/10 text-white/70">
                     {auth.user.emailVerified ? 'verificado' : 'pendente'}
@@ -424,7 +424,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                     <p className="mt-3 text-base font-semibold text-white">30 dias</p>
                   </div>
                   <div className="rounded-[24px] border border-white/10 bg-white/5 px-4 py-4">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/50">Janela IA</p>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/50">Atualização</p>
                     <p className="mt-3 text-base font-semibold text-white">20 min</p>
                   </div>
                 </div>
@@ -444,7 +444,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                   onClick={handleLogoutClick}
                   className="dark-button w-full justify-between rounded-[22px] border-rose-400/20 bg-rose-400/10 px-5 py-4 text-rose-50 hover:bg-rose-400/15"
                 >
-                  <span>Sair da sessao</span>
+                  <span>Sair da sessão</span>
                   <span className="text-rose-100/60">exit</span>
                 </button>
               </div>
@@ -464,14 +464,14 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
           </aside>
 
           <div className="space-y-6">
-            <section className="glass-panel-dark relative overflow-hidden p-5 sm:p-6">
+            <section className="glass-panel-dark relative p-5 sm:p-6">
               <div className="soft-grid absolute inset-0 opacity-20" />
               <div className="relative z-10 space-y-5">
                 <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
                   <div>
-                    <p className="section-kicker text-white/55">Command filters</p>
+                    <p className="section-kicker text-white/55">Filtros do painel</p>
                     <h2 className="mt-3 font-display text-3xl font-bold text-white">
-                      Escolha a cidade e mude a leitura do painel em tempo real.
+                      Escolha a cidade e atualize a leitura do painel em tempo real.
                     </h2>
                   </div>
 
@@ -544,10 +544,10 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                           <p className="section-kicker text-white/55">
-                            {rangeFilter === 'custom' ? 'Briefing do periodo' : 'AI climate briefing'}
+                            {rangeFilter === 'custom' ? 'Resumo do período' : 'Panorama da cidade'}
                           </p>
                           <h2 className="mt-3 max-w-2xl font-display text-3xl font-bold text-white sm:text-[2.65rem] sm:leading-[1.05]">
-                            O painel agora conversa com a cidade escolhida, nao com um clima generico.
+                            A leitura principal acompanha a cidade selecionada, com dados recentes e contexto local.
                           </h2>
                         </div>
 
@@ -555,8 +555,8 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                           <span>Atualizado em {formatDateTime(latestReading.collected_at)}</span>
                           <span>
                             {isLiveWeatherData(latestReading) && latestReading.ai_generated_at
-                              ? `Pacote IA em ${formatDateTime(latestReading.ai_generated_at)}`
-                              : 'Leitura local sincronizada'}
+                              ? `Atualizado em ${formatDateTime(latestReading.ai_generated_at)}`
+                              : 'Leitura sincronizada'}
                           </span>
                         </div>
                       </div>
@@ -568,12 +568,12 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                             {latestReading.temp.toFixed(1)}
                           </p>
                           <div className="mt-2 flex items-center gap-2 text-white/70">
-                            <span className="text-xl">C</span>
+                            <span className="text-xl">°C</span>
                             <span>{selectedLocation.displayName}</span>
                           </div>
                           <div className="mt-6 flex flex-wrap gap-2">
                             <span className="status-pill border-white/10 bg-white/10 text-white/70">
-                              {latestReading.is_day === 1 ? 'periodo diurno' : 'periodo noturno'}
+                              {latestReading.is_day === 1 ? 'período diurno' : 'período noturno'}
                             </span>
                             <span className="status-pill border-white/10 bg-white/10 text-white/70">
                               {getWeatherStatus(latestReading)}
@@ -585,20 +585,20 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                             <div>
                               <p className="text-xs uppercase tracking-[0.22em] text-white/50">
-                                Insights em rotacao
+                                Leituras em destaque
                               </p>
                               <p className="mt-2 text-sm text-white/70">
-                                Tres leituras alternadas para evitar cards estaticos e repetitivos.
+                                Três observações curtas para destacar o que mais importa agora.
                               </p>
                             </div>
 
                             {isLiveWeatherData(latestReading) ? (
                               <div className="flex flex-wrap gap-2">
                                 <span className="status-pill border-white/10 bg-white/10 text-white/70">
-                                  {latestReading.insight_source === 'ai' ? 'pacote IA' : 'fallback local'}
+                                  {latestReading.insight_source === 'ai' ? 'síntese automática' : 'base local'}
                                 </span>
                                 <span className="status-pill border-white/10 bg-white/10 text-white/70">
-                                  {latestReading.has_active_viewer ? 'usuario ativo' : 'sem usuario ativo'}
+                                  {latestReading.has_active_viewer ? 'usuário ativo' : 'sem usuário ativo'}
                                 </span>
                               </div>
                             ) : null}
@@ -613,7 +613,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                             insights={
                               isLiveWeatherData(latestReading)
                                 ? latestReading.insights
-                                : ['Historico carregado para o periodo selecionado.']
+                                : ['Histórico carregado para o período selecionado.']
                             }
                           />
                         </div>
@@ -623,14 +623,14 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
 
                   <div className="space-y-4">
                     <article className="glass-panel p-6">
-                      <p className="section-kicker mb-3">Signal board</p>
+                      <p className="section-kicker mb-3">Painel de leitura</p>
                       <h3 className="font-display text-2xl font-bold text-brand-dark">Leitura operacional</h3>
                       <div className="mt-5 space-y-3">
                         {[
                           ['Status atual', getWeatherStatus(latestReading)],
                           ['Umidade', `${latestReading.humidity.toFixed(0)}%`],
                           ['Vento', `${latestReading.wind_speed.toFixed(1)} km/h`],
-                          ['Precipitacao', `${latestReading.precipitation.toFixed(1)} mm`],
+                          ['Precipitação', `${latestReading.precipitation.toFixed(1)} mm`],
                         ].map(([label, value]) => (
                           <div
                             key={label}
@@ -646,7 +646,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                     </article>
 
                     <article className="glass-panel p-6">
-                      <p className="section-kicker mb-3">Periodo atual</p>
+                      <p className="section-kicker mb-3">Período atual</p>
                       <h3 className="font-display text-2xl font-bold text-brand-dark">Resumo do recorte</h3>
                       <div className="mt-5 grid grid-cols-2 gap-3">
                         {[
@@ -670,10 +670,10 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                 <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="metric-panel overflow-hidden p-5">
                     <div className="absolute inset-x-5 top-0 h-1 rounded-b-full bg-[linear-gradient(90deg,#f08a32,#ffb36a)]" />
-                    <p className="section-kicker mb-3">Temperatura media</p>
-                    <p className="font-display text-3xl font-bold text-brand-dark">{avgTemp.toFixed(1)} C</p>
+                    <p className="section-kicker mb-3">Temperatura média</p>
+                    <p className="font-display text-3xl font-bold text-brand-dark">{avgTemp.toFixed(1)} °C</p>
                     <p className="mt-3 text-sm leading-6 text-brand-muted">
-                      Media do periodo exibido para comparar o agora com a tendencia recente.
+                      Média do período exibido para comparar a leitura atual com a tendência recente.
                     </p>
                   </div>
                   <div className="metric-panel overflow-hidden p-5">
@@ -681,7 +681,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                     <p className="section-kicker mb-3">Momentos de chuva</p>
                     <p className="font-display text-3xl font-bold text-brand-dark">{rainyMoments}</p>
                     <p className="mt-3 text-sm leading-6 text-brand-muted">
-                      Quantidade de registros com precipitacao acima de zero no recorte atual.
+                      Quantidade de registros com precipitação acima de zero no recorte atual.
                     </p>
                   </div>
                   <div className="metric-panel overflow-hidden p-5">
@@ -689,7 +689,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                     <p className="section-kicker mb-3">Cidade ativa</p>
                     <p className="font-display text-3xl font-bold text-brand-dark">{selectedLocation.cityName}</p>
                     <p className="mt-3 text-sm leading-6 text-brand-muted">
-                      Cada login carrega os ultimos 30 dias da cidade salva no seu perfil.
+                      Cada acesso abre com os últimos 30 dias da cidade salva no perfil.
                     </p>
                   </div>
                   <div className="metric-panel overflow-hidden p-5">
@@ -697,7 +697,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                     <p className="section-kicker mb-3">Pico de vento</p>
                     <p className="font-display text-3xl font-bold text-brand-dark">{peakWind.toFixed(1)} km/h</p>
                     <p className="mt-3 text-sm leading-6 text-brand-muted">
-                      Valor maximo observado no recorte atual para leitura rapida de risco.
+                      Maior valor observado no recorte atual para leitura rápida de risco.
                     </p>
                   </div>
                 </section>
@@ -713,12 +713,12 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
             <section className="glass-panel overflow-hidden">
               <div className="flex flex-col gap-4 border-b border-slate-200/80 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-7">
                 <div>
-                  <p className="section-kicker mb-2">Recent timeline</p>
+                  <p className="section-kicker mb-2">Linha do tempo</p>
                   <h3 className="font-display text-2xl font-bold text-brand-dark">
-                    Momentos mais recentes do periodo filtrado
+                    Momentos mais recentes do período filtrado
                   </h3>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-brand-muted">
-                    Em vez de uma tabela seca, o bloco abaixo destaca os sinais mais recentes para leitura rapida.
+                    Os registros abaixo ajudam a revisar rapidamente as mudanças mais recentes do período.
                   </p>
                 </div>
                 <span className="status-pill self-start border-slate-200 bg-white/85 text-brand-muted">
@@ -743,7 +743,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
 
                     <div className="mt-5 grid grid-cols-2 gap-3">
                       {[
-                        ['Temperatura', `${item.temp.toFixed(1)} C`],
+                        ['Temperatura', `${item.temp.toFixed(1)} °C`],
                         ['Umidade', `${item.humidity.toFixed(0)}%`],
                         ['Vento', `${item.wind_speed.toFixed(1)} km/h`],
                         ['Chuva', `${item.precipitation.toFixed(1)} mm`],
@@ -764,12 +764,12 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                 <table className="w-full min-w-[880px] border-collapse">
                   <thead className="bg-[#f2ede5]/85 text-left text-[11px] font-bold uppercase tracking-[0.24em] text-brand-muted">
                     <tr>
-                      <th className="px-6 py-4">Horario</th>
+                      <th className="px-6 py-4">Horário</th>
                       <th className="px-6 py-4">Temperatura</th>
                       <th className="px-6 py-4">Umidade</th>
                       <th className="px-6 py-4">Vento</th>
                       <th className="px-6 py-4">Chuva</th>
-                      <th className="px-6 py-4">Periodo</th>
+                      <th className="px-6 py-4">Período</th>
                       <th className="px-6 py-4">Status</th>
                     </tr>
                   </thead>
@@ -777,7 +777,7 @@ export function Dashboard({ auth, onAuthChange, onLogout }: DashboardProps) {
                     {timelineRows.map((item) => (
                       <tr key={item.collected_at} className="transition hover:bg-white/75">
                         <td className="px-6 py-4 font-mono text-xs">{formatDateTime(item.collected_at)}</td>
-                        <td className="px-6 py-4 font-semibold text-brand-dark">{item.temp.toFixed(1)} C</td>
+                        <td className="px-6 py-4 font-semibold text-brand-dark">{item.temp.toFixed(1)} °C</td>
                         <td className="px-6 py-4">{item.humidity.toFixed(0)}%</td>
                         <td className="px-6 py-4">{item.wind_speed.toFixed(1)} km/h</td>
                         <td className="px-6 py-4">{item.precipitation.toFixed(1)} mm</td>

@@ -35,7 +35,7 @@ export function GoogleLoginButton({
   const buttonRef = useRef<HTMLDivElement | null>(null);
   const handleCredential = useEffectEvent((response: { credential?: string }) => {
     if (!response.credential) {
-      onError('Nao foi possivel autenticar com o Google.');
+      onError('Não foi possível autenticar com o Google.');
       return;
     }
 

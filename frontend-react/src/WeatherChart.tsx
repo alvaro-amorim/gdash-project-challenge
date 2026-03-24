@@ -188,21 +188,21 @@ export function WeatherChart({ data, cityLabel, loading = false }: WeatherChartP
     <section className="glass-panel overflow-hidden p-5 sm:p-7">
       <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="section-kicker mb-2">Inteligencia visual</p>
+          <p className="section-kicker mb-2">Leitura visual</p>
           <h3 className="font-display text-2xl font-bold text-brand-dark">
-            Tendencias climaticas com leitura mais rapida e profissional.
+            Tendências climáticas com leitura rápida e comparável.
           </h3>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-brand-muted">
-            O painel resume {cityLabel} em uma camada principal de temperatura e umidade e outra
-            para chuva e vento, com agregacao automatica para manter a navegacao leve.
+            O painel resume {cityLabel} com uma camada principal de temperatura e umidade e outra
+            para chuva e vento, usando agregação automática para manter a navegação leve.
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-5">
           {[
-            ['Resolucao', resolution === 'daily' ? 'Diaria' : resolution === '3h' ? '3 horas' : 'Horaria'],
-            ['Amplitude', `${(maxTemp - minTemp).toFixed(1)} C`],
-            ['Umidade media', `${avgHumidity.toFixed(0)}%`],
+            ['Resolução', resolution === 'daily' ? 'Diária' : resolution === '3h' ? '3 horas' : 'Horária'],
+            ['Amplitude', `${(maxTemp - minTemp).toFixed(1)} °C`],
+            ['Umidade média', `${avgHumidity.toFixed(0)}%`],
             ['Pico de vento', `${peakWind.toFixed(1)} km/h`],
             ['Chuva total', `${totalRain.toFixed(1)} mm`],
           ].map(([label, value]) => (
@@ -218,7 +218,7 @@ export function WeatherChart({ data, cityLabel, loading = false }: WeatherChartP
 
       {loading ? (
         <div className="flex h-[420px] items-center justify-center text-sm text-brand-muted">
-          Carregando historico da cidade selecionada...
+          Carregando histórico da cidade selecionada...
         </div>
       ) : (
         <div className="space-y-5">
@@ -252,7 +252,7 @@ export function WeatherChart({ data, cityLabel, loading = false }: WeatherChartP
                   tick={{ fontSize: 11, fill: '#5f7288' }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(value) => `${value} C`}
+                  tickFormatter={(value) => `${value} °C`}
                   width={48}
                 />
 
@@ -294,8 +294,8 @@ export function WeatherChart({ data, cityLabel, loading = false }: WeatherChartP
                   yAxisId="temp"
                   type="monotone"
                   dataKey="temp"
-                  name="Temperatura media"
-                  unit=" C"
+                  name="Temperatura média"
+                  unit=" °C"
                   stroke="#f97316"
                   strokeWidth={3}
                   dot={false}
@@ -308,8 +308,8 @@ export function WeatherChart({ data, cityLabel, loading = false }: WeatherChartP
                       yAxisId="temp"
                       type="monotone"
                       dataKey="temp_max"
-                      name="Temperatura maxima"
-                      unit=" C"
+                      name="Temperatura máxima"
+                      unit=" °C"
                       stroke="#fb923c"
                       strokeWidth={1.8}
                       dot={false}
@@ -319,8 +319,8 @@ export function WeatherChart({ data, cityLabel, loading = false }: WeatherChartP
                       yAxisId="temp"
                       type="monotone"
                       dataKey="temp_min"
-                      name="Temperatura minima"
-                      unit=" C"
+                      name="Temperatura mínima"
+                      unit=" °C"
                       stroke="#fdba74"
                       strokeWidth={1.8}
                       dot={false}

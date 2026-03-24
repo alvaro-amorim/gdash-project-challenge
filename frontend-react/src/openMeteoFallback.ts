@@ -39,30 +39,30 @@ function buildFallbackInsights(location: CityOption, current: Record<string, unk
   };
 
   if (rain > 0) {
-    addInsight(`Chuva: ${location.cityName} tem ${formatMetric(rain)} mm neste momento; vale redobrar a atencao.`);
+    addInsight(`Chuva: ${location.cityName} registra ${formatMetric(rain)} mm neste momento; vale redobrar a atenção.`);
   } else if (temp >= 30) {
-    addInsight(`Calor: ${location.cityName} opera com ${formatMetric(temp)} C e pede hidratacao reforcada.`);
+    addInsight(`Calor: ${location.cityName} está com ${formatMetric(temp)} °C e pede hidratação reforçada.`);
   } else if (temp <= 15) {
-    addInsight(`Frio: ${location.cityName} marca ${formatMetric(temp)} C e pede leitura mais cautelosa.`);
+    addInsight(`Frio: ${location.cityName} marca ${formatMetric(temp)} °C e pede uma leitura mais cautelosa.`);
   } else {
-    addInsight(`Estavel: ${location.cityName} segue com ${formatMetric(temp)} C e leitura operacional consistente.`);
+    addInsight(`Estável: ${location.cityName} segue com ${formatMetric(temp)} °C e condições sem grandes desvios.`);
   }
 
   if (humidity >= 85) {
-    addInsight(`Umidade: ${formatMetric(humidity)}% indica ar mais pesado e maior sensacao de abafamento.`);
+    addInsight(`Umidade: ${formatMetric(humidity)}% indica ar mais pesado e maior sensação de abafamento.`);
   } else if (humidity <= 35) {
-    addInsight(`Umidade: ${formatMetric(humidity)}% aponta ar seco e necessidade de hidratacao.`);
+    addInsight(`Umidade: ${formatMetric(humidity)}% aponta ar seco e necessidade de hidratação.`);
   } else {
-    addInsight(`Umidade: ${formatMetric(humidity)}% mantem uma faixa moderada para a cidade.`);
+    addInsight(`Umidade: ${formatMetric(humidity)}% mantém uma faixa moderada para a cidade.`);
   }
 
   if (wind >= 20) {
-    addInsight(`Vento: ${formatMetric(wind)} km/h pode afetar deslocamentos e areas expostas.`);
+    addInsight(`Vento: ${formatMetric(wind)} km/h pode afetar deslocamentos e áreas expostas.`);
   } else {
     addInsight(
       isDay
-        ? 'Periodo diurno com vento controlado favorece uma leitura mais previsivel.'
-        : 'Periodo noturno com vento controlado favorece uma janela mais tranquila.',
+        ? 'Período diurno com vento controlado favorece uma leitura mais previsível.'
+        : 'Período noturno com vento controlado favorece uma janela mais tranquila.',
     );
   }
 

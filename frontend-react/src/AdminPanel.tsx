@@ -32,7 +32,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
       setVisits(visitsResponse);
     } catch (loadError) {
       console.error(loadError);
-      setError('Nao foi possivel carregar os dados administrativos.');
+      setError('Não foi possível carregar os dados administrativos.');
     } finally {
       setLoading(false);
     }
@@ -64,11 +64,11 @@ export function AdminPanel({ token }: AdminPanelProps) {
       setNewUserName('');
       setNewUserEmail('');
       setNewUserRole('user');
-      setMessage('Usuario criado. Ele podera entrar solicitando codigo por email.');
+      setMessage('Usuário criado. Ele poderá entrar solicitando código por e-mail.');
       await loadAdminData();
     } catch (createError) {
       console.error(createError);
-      setError('Nao foi possivel criar o usuario.');
+      setError('Não foi possível criar o usuário.');
     }
   };
 
@@ -76,7 +76,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
     <>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
         {[
-          { label: 'Usuarios', value: overview?.totalUsers ?? 0 },
+          { label: 'Usuários', value: overview?.totalUsers ?? 0 },
           { label: 'Verificados', value: overview?.verifiedUsers ?? 0 },
           { label: 'Ativos Agora', value: overview?.activeUsers ?? 0 },
           { label: 'Visitas', value: overview?.totalVisits ?? 0 },
@@ -97,7 +97,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
           <div className="soft-grid absolute inset-0 opacity-20" />
           <div className="relative z-10">
           <p className="section-kicker mb-2 text-white/55">Controle de acesso</p>
-          <h3 className="mb-4 font-display text-2xl font-bold text-white">Criar Usuario</h3>
+          <h3 className="mb-4 font-display text-2xl font-bold text-white">Criar usuário</h3>
           <form onSubmit={handleCreateUser} className="space-y-4">
             <input
               type="text"
@@ -120,14 +120,14 @@ export function AdminPanel({ token }: AdminPanelProps) {
               onChange={(e) => setNewUserRole(e.target.value as 'admin' | 'user')}
               className="field-shell"
             >
-              <option value="user">Usuario</option>
+              <option value="user">Usuário</option>
               <option value="admin">Administrador</option>
             </select>
             <button
               type="submit"
               className="primary-button w-full rounded-[22px] py-3"
             >
-              Criar usuario
+              Criar usuário
             </button>
           </form>
           {message ? (
@@ -147,7 +147,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
           <div className="flex flex-col gap-3 border-b border-slate-200/80 p-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="section-kicker mb-2">Base atual</p>
-              <h3 className="font-display text-2xl font-bold text-brand-dark">Usuarios cadastrados</h3>
+              <h3 className="font-display text-2xl font-bold text-brand-dark">Usuários cadastrados</h3>
             </div>
             <button
               type="button"
@@ -173,7 +173,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
                     <td className="p-4 font-semibold text-brand-dark">{user.name}</td>
                     <td className="p-4">{user.email}</td>
                     <td className="p-4 text-xs uppercase tracking-[0.18em]">{user.role}</td>
-                    <td className="p-4">{user.emailVerified ? 'Sim' : 'Nao'}</td>
+                    <td className="p-4">{user.emailVerified ? 'Sim' : 'Não'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -185,7 +185,7 @@ export function AdminPanel({ token }: AdminPanelProps) {
       <div className="glass-panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-200/80 p-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="section-kicker mb-2">Analitico de uso</p>
+            <p className="section-kicker mb-2">Analítico de uso</p>
             <h3 className="font-display text-2xl font-bold text-brand-dark">Visitas ao app</h3>
           </div>
           {loading ? <span className="text-xs text-brand-muted">Carregando...</span> : null}
@@ -194,10 +194,10 @@ export function AdminPanel({ token }: AdminPanelProps) {
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/85 text-[10px] font-bold uppercase tracking-[0.22em] text-brand-muted">
               <tr>
-                <th className="p-4">Usuario</th>
-                <th className="p-4">Sessao</th>
-                <th className="p-4">Inicio</th>
-                <th className="p-4">Ultimo Sinal</th>
+                <th className="p-4">Usuário</th>
+                <th className="p-4">Sessão</th>
+                <th className="p-4">Início</th>
+                <th className="p-4">Último sinal</th>
                 <th className="p-4">Status</th>
               </tr>
             </thead>

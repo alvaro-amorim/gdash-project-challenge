@@ -4,7 +4,7 @@ interface InsightSliderProps {
   insights: string[];
 }
 
-const FALLBACK_INSIGHTS = ['Aguardando analise do clima atual.'];
+const FALLBACK_INSIGHTS = ['Aguardando análise das condições atuais.'];
 
 export function InsightSlider({ insights }: InsightSliderProps) {
   const safeInsights = insights.length > 0 ? insights : FALLBACK_INSIGHTS;
