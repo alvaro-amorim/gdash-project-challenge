@@ -263,7 +263,7 @@ export class WeatherController {
 
   private parseNumber(value?: string) {
     const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
+    return Number.isFinite(parsed) ? parsed : undefined;
   }
 
   private toDateOnly(value?: string) {

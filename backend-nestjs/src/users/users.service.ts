@@ -98,6 +98,47 @@ export class UsersService implements OnModuleInit {
     return users.map((user) => this.toPublicUser(user));
   }
 
+  async findTrackedWeatherLocations(): Promise<
+    Array<{
+      cityName?: string;
+      stateName?: string;
+      stateCode?: string;
+      latitude: number;
+      longitude: number;
+      timezone?: string;
+    }>
+  > {
+    const users = await this.userModel
+      .find({
+        preferredLatitude: { $ne: null },
+        preferredLongitude: { $ne: null },
+      })
+      .select([
+        'preferredCityName',
+        'preferredStateName',
+        'preferredStateCode',
+        'preferredLatitude',
+        'preferredLongitude',
+        'preferredTimezone',
+      ])
+      .lean()
+      .exec();
+
+    return users
+      .filter(
+        (user) =>
+          typeof user.preferredLatitude === 'number' && typeof user.preferredLongitude === 'number',
+      )
+      .map((user) => ({
+        cityName: user.preferredCityName?.trim() || undefined,
+        stateName: user.preferredStateName?.trim() || undefined,
+        stateCode: user.preferredStateCode?.trim().toUpperCase() || undefined,
+        latitude: user.preferredLatitude as number,
+        longitude: user.preferredLongitude as number,
+        timezone: user.preferredTimezone?.trim() || undefined,
+      }));
+  }
+
   async findOne(id: string): Promise<Record<string, unknown>> {
     const user = await this.findByIdOrThrow(id);
     return this.toPublicUser(user);
