@@ -2,7 +2,6 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -38,11 +37,7 @@ export class AuthService {
   ) {}
 
   async requestLoginCode(email: string): Promise<{ sent: boolean; devCode?: string }> {
-    const user = await this.usersService.findByEmail(email);
-
-    if (!user || !user.isActive) {
-      throw new NotFoundException('User not found or inactive');
-    }
+    const user = await this.findOrCreateEmailUser(email);
 
     const loginCode = String(randomInt(100000, 999999));
     user.loginCodeHash = this.hashLoginCode(loginCode);
@@ -55,7 +50,7 @@ export class AuthService {
     }
 
     if (process.env.NODE_ENV === 'production') {
-      throw new InternalServerErrorException('Email login is temporarily unavailable');
+      throw new InternalServerErrorException('O envio por e-mail está indisponível no momento.');
     }
 
     return { sent: false, devCode: loginCode };
@@ -65,18 +60,22 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email);
 
     if (!user || !user.loginCodeHash || !user.loginCodeExpiresAt) {
-      throw new UnauthorizedException('Invalid or expired verification code');
+      throw new UnauthorizedException('Código inválido ou expirado.');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Este acesso está desativado.');
     }
 
     if (user.loginCodeExpiresAt.getTime() < Date.now()) {
       user.loginCodeHash = undefined;
       user.loginCodeExpiresAt = undefined;
       await this.usersService.save(user);
-      throw new UnauthorizedException('Invalid or expired verification code');
+      throw new UnauthorizedException('Código inválido ou expirado.');
     }
 
     if (user.loginCodeHash !== this.hashLoginCode(code.trim())) {
-      throw new UnauthorizedException('Invalid or expired verification code');
+      throw new UnauthorizedException('Código inválido ou expirado.');
     }
 
     user.loginCodeHash = undefined;
@@ -92,7 +91,7 @@ export class AuthService {
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
 
     if (!googleClientId) {
-      throw new InternalServerErrorException('Google login is not configured');
+      throw new InternalServerErrorException('O login com Google não está configurado.');
     }
 
     const ticket = await this.googleClient.verifyIdToken({
@@ -103,7 +102,7 @@ export class AuthService {
     const payload = ticket.getPayload();
 
     if (!payload?.email || !payload.email_verified) {
-      throw new UnauthorizedException('Google account email is not verified');
+      throw new UnauthorizedException('A conta Google precisa ter um e-mail verificado.');
     }
 
     let user = await this.usersService.findByEmail(payload.email);
@@ -122,7 +121,7 @@ export class AuthService {
     }
 
     if (!user.isActive) {
-      throw new UnauthorizedException('User is inactive');
+      throw new UnauthorizedException('Este acesso está desativado.');
     }
 
     user.name = user.name || payload.name || payload.email.split('@')[0];
@@ -173,6 +172,46 @@ export class AuthService {
     return createHash('sha256').update(code).digest('hex');
   }
 
+  private async findOrCreateEmailUser(email: string): Promise<UserDocument> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const existingUser = await this.usersService.findByEmail(normalizedEmail);
+
+    if (existingUser) {
+      if (!existingUser.isActive) {
+        throw new UnauthorizedException('Este acesso está desativado.');
+      }
+
+      return existingUser;
+    }
+
+    return this.usersService.createRaw({
+      name: this.deriveDisplayNameFromEmail(normalizedEmail),
+      email: normalizedEmail,
+      role: 'user',
+      provider: 'email',
+      emailVerified: false,
+      createdBy: 'self-signup',
+    });
+  }
+
+  private deriveDisplayNameFromEmail(email: string): string {
+    const [localPart = 'novo usuario'] = email.split('@');
+    const collapsed = localPart
+      .replace(/[._-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!collapsed) {
+      return 'Novo usuario';
+    }
+
+    return collapsed
+      .split(' ')
+      .filter(Boolean)
+      .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+      .join(' ');
+  }
+
   private async sendLoginCodeEmail(user: UserDocument, loginCode: string): Promise<boolean> {
     const message = this.buildLoginCodeEmailMessage(loginCode);
 
@@ -209,9 +248,17 @@ export class AuthService {
 
   private buildLoginCodeEmailMessage(loginCode: string): LoginCodeEmailMessage {
     return {
-      subject: 'Seu codigo de acesso GDASH',
-      text: `Seu codigo de acesso e ${loginCode}. Ele expira em 10 minutos.`,
-      html: `<p>Seu codigo de acesso e <strong>${loginCode}</strong>.</p><p>Ele expira em 10 minutos.</p>`,
+      subject: 'Seu código de acesso ao GDASH',
+      text:
+        `Use este código para entrar no GDASH: ${loginCode}.\n\n` +
+        'Ele expira em 10 minutos. Se você não pediu esse acesso, pode ignorar esta mensagem.',
+      html:
+        '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#102033">' +
+        '<p>Use este código para entrar no <strong>GDASH</strong>:</p>' +
+        `<p style="font-size:28px;font-weight:700;letter-spacing:0.22em;margin:16px 0">${loginCode}</p>` +
+        '<p>Ele expira em 10 minutos.</p>' +
+        '<p>Se você não pediu esse acesso, pode ignorar esta mensagem.</p>' +
+        '</div>',
     };
   }
 

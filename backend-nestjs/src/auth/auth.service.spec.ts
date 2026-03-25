@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from '@nestjs/common';
+import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from '../users/users.service';
@@ -75,6 +75,45 @@ describe('AuthService', () => {
         method: 'POST',
       }),
     );
+  });
+
+  it('creates a user automatically on the first email login request', async () => {
+    process.env.NODE_ENV = 'test';
+
+    const createdUser = {
+      email: 'new.user@example.com',
+      isActive: true,
+    } as any;
+
+    usersService.findByEmail.mockResolvedValue(null);
+    usersService.createRaw.mockResolvedValue(createdUser);
+    usersService.save.mockResolvedValue(createdUser);
+
+    const response = await service.requestLoginCode(createdUser.email);
+
+    expect(usersService.createRaw).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'new.user@example.com',
+        name: 'New User',
+        role: 'user',
+        provider: 'email',
+        createdBy: 'self-signup',
+      }),
+    );
+    expect(response.sent).toBe(false);
+    expect(response.devCode).toMatch(/^\d{6}$/);
+  });
+
+  it('rejects email login for inactive users', async () => {
+    usersService.findByEmail.mockResolvedValue({
+      email: 'inactive@example.com',
+      isActive: false,
+    });
+
+    await expect(service.requestLoginCode('inactive@example.com')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(usersService.createRaw).not.toHaveBeenCalled();
   });
 
   it('returns a dev code when no email provider is configured outside production', async () => {

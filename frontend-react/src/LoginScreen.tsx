@@ -76,7 +76,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setError(
         getErrorMessage(
           requestError,
-          'Não foi possível enviar o código. Confira se o usuário existe.',
+          'Não foi possível enviar o código agora. Tente novamente em instantes.',
         ),
       );
     } finally {
@@ -175,7 +175,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               <div className="rounded-[30px] border border-white/10 bg-white/10 p-6">
                 <p className="section-kicker text-white/55">Como entrar</p>
                 <p className="mt-3 max-w-xl text-lg leading-8 text-white/90">
-                  Use seu e-mail para receber um código de acesso. Se preferir, também é possível entrar com Google.
+                  Digite seu e-mail para receber um código de acesso. Se preferir, também é possível entrar com Google.
                 </p>
               </div>
               <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.05))] p-6">
@@ -206,7 +206,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             </div>
 
             <p className="max-w-md text-sm leading-6 text-brand-muted">
-              Use o e-mail do seu perfil para receber o código de acesso.
+              Digite seu e-mail para receber um código de acesso.
             </p>
           </div>
 
