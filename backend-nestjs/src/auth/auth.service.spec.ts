@@ -58,6 +58,7 @@ describe('AuthService', () => {
     process.env.RESEND_FROM_EMAIL = 'GDASH <onboarding@resend.dev>';
 
     const user = {
+      name: 'Álvaro Amorim',
       email: 'user@example.com',
       isActive: true,
     } as any;
@@ -75,6 +76,12 @@ describe('AuthService', () => {
         method: 'POST',
       }),
     );
+
+    const requestPayload = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body as string);
+    expect(requestPayload.subject).toBe('Seu código de acesso ao GDASH');
+    expect(requestPayload.html).toContain('Seu código chegou.');
+    expect(requestPayload.html).toContain('Álvaro');
+    expect(requestPayload.html).toContain('Abrir painel');
   });
 
   it('creates a user automatically on the first email login request', async () => {

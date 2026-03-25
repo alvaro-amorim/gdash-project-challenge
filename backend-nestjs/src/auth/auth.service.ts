@@ -213,7 +213,7 @@ export class AuthService {
   }
 
   private async sendLoginCodeEmail(user: UserDocument, loginCode: string): Promise<boolean> {
-    const message = this.buildLoginCodeEmailMessage(loginCode);
+    const message = this.buildLoginCodeEmailMessage(user, loginCode);
 
     // Free hosts like Render block outbound SMTP, so prefer HTTPS delivery when available.
     if (await this.sendLoginCodeWithResend(user, message)) {
@@ -246,20 +246,139 @@ export class AuthService {
     return 'disabled';
   }
 
-  private buildLoginCodeEmailMessage(loginCode: string): LoginCodeEmailMessage {
+  private buildLoginCodeEmailMessage(
+    user: Pick<UserDocument, 'name' | 'email'>,
+    loginCode: string,
+  ): LoginCodeEmailMessage {
+    const greetingName = this.escapeHtml(this.resolveGreetingName(user));
+    const panelUrl = 'https://gdash.comercias.com.br';
+
     return {
       subject: 'Seu código de acesso ao GDASH',
       text:
-        `Use este código para entrar no GDASH: ${loginCode}.\n\n` +
-        'Ele expira em 10 minutos. Se você não pediu esse acesso, pode ignorar esta mensagem.',
+        `Olá, ${this.resolveGreetingName(user)}!\n\n` +
+        `Seu código de acesso ao GDASH é ${loginCode}.\n\n` +
+        `Ele expira em 10 minutos.\n\n` +
+        `Abra o painel em ${panelUrl} para concluir a entrada.\n` +
+        'Se você não pediu esse acesso, pode ignorar esta mensagem.',
       html:
-        '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#102033">' +
-        '<p>Use este código para entrar no <strong>GDASH</strong>:</p>' +
-        `<p style="font-size:28px;font-weight:700;letter-spacing:0.22em;margin:16px 0">${loginCode}</p>` +
-        '<p>Ele expira em 10 minutos.</p>' +
-        '<p>Se você não pediu esse acesso, pode ignorar esta mensagem.</p>' +
-        '</div>',
+        '<!doctype html>' +
+        '<html lang="pt-BR">' +
+        '<head>' +
+        '<meta charset="utf-8" />' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+        '<title>Seu código de acesso ao GDASH</title>' +
+        '</head>' +
+        '<body style="margin:0;padding:0;background-color:#f4efe7;color:#102033;">' +
+        '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">' +
+        `Seu código de acesso ao GDASH é ${loginCode}. Ele expira em 10 minutos.` +
+        '</div>' +
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background-color:#f4efe7;">' +
+        '<tr>' +
+        '<td align="center" style="padding:32px 16px;">' +
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;border-collapse:collapse;">' +
+        '<tr>' +
+        '<td style="padding:0 0 18px 0;font-family:Arial,sans-serif;font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#5e7488;text-align:center;">' +
+        'Portal GDASH' +
+        '</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td style="border-radius:28px;overflow:hidden;background:linear-gradient(145deg,#0f2236,#153a59);box-shadow:0 26px 70px -42px rgba(12,24,40,0.85);">' +
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">' +
+        '<tr>' +
+        '<td style="padding:28px 32px 18px 32px;">' +
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">' +
+        '<tr>' +
+        '<td style="font-family:Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#8ecfcb;">' +
+        'Acesso ao painel' +
+        '</td>' +
+        '<td align="right">' +
+        '<span style="display:inline-block;border-radius:999px;background-color:rgba(12,168,154,0.14);border:1px solid rgba(97,208,191,0.18);padding:8px 14px;font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#b7efea;">' +
+        'Válido por 10 min' +
+        '</span>' +
+        '</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td colspan="2" style="padding-top:18px;font-family:Arial,sans-serif;font-size:38px;line-height:1.15;font-weight:700;color:#ffffff;">' +
+        'Seu código chegou.' +
+        '</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td colspan="2" style="padding-top:14px;font-family:Arial,sans-serif;font-size:16px;line-height:1.7;color:#d5e2eb;">' +
+        `Olá, ${greetingName}. Use o código abaixo para entrar no GDASH e continuar de onde parou.` +
+        '</td>' +
+        '</tr>' +
+        '</table>' +
+        '</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td style="padding:0 32px 32px 32px;">' +
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-radius:24px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);">' +
+        '<tr>' +
+        '<td align="center" style="padding:14px 20px 6px 20px;font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:#8fb1c3;">' +
+        'Código de verificação' +
+        '</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td align="center" style="padding:6px 20px 12px 20px;font-family:Arial,sans-serif;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:0.32em;color:#ffffff;">' +
+        `${loginCode}` +
+        '</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td align="center" style="padding:0 20px 22px 20px;font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#c3d5e0;">' +
+        'Digite esse código na tela de acesso para concluir a entrada.' +
+        '</td>' +
+        '</tr>' +
+        '</table>' +
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:18px;">' +
+        '<tr>' +
+        '<td style="font-family:Arial,sans-serif;font-size:14px;line-height:1.7;color:#c3d5e0;">' +
+        'Se você não pediu esse acesso, pode ignorar este e-mail com segurança.' +
+        '</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td style="padding-top:18px;">' +
+        `<a href="${panelUrl}" style="display:inline-block;border-radius:18px;background:#0ca89a;padding:13px 18px;font-family:Arial,sans-serif;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">Abrir painel</a>` +
+        '</td>' +
+        '</tr>' +
+        '</table>' +
+        '</td>' +
+        '</tr>' +
+        '</table>' +
+        '</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td style="padding:18px 18px 0 18px;font-family:Arial,sans-serif;font-size:12px;line-height:1.7;color:#6d7f8f;text-align:center;">' +
+        'GDASH · Painel climático com leitura ao vivo, histórico por cidade e recortes operacionais.' +
+        '</td>' +
+        '</tr>' +
+        '<tr>' +
+        '<td style="padding:8px 18px 0 18px;font-family:Arial,sans-serif;font-size:12px;line-height:1.7;color:#8b99a5;text-align:center;">' +
+        `Acesse: <a href="${panelUrl}" style="color:#153a59;text-decoration:none;">${panelUrl}</a>` +
+        '</td>' +
+        '</tr>' +
+        '</table>' +
+        '</td>' +
+        '</tr>' +
+        '</table>' +
+        '</body>' +
+        '</html>',
     };
+  }
+
+  private resolveGreetingName(user: Pick<UserDocument, 'name' | 'email'>): string {
+    const source = user.name?.trim() || this.deriveDisplayNameFromEmail(user.email);
+    const [firstName = ''] = source.split(' ').filter(Boolean);
+    return firstName || 'Olá';
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private async sendLoginCodeWithResend(
