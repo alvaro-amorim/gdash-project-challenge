@@ -1,5 +1,61 @@
 # GDASH Analytics
 
+Plataforma full stack de monitoramento climático com frontend React, API NestJS, MongoDB, RabbitMQ, worker em Go, coletor em Python e insights com IA ou fallback local.
+
+## Visão para recrutadores
+
+Este projeto demonstra:
+- arquitetura full stack com frontend, backend, worker, coletor e mensageria;
+- autenticação por email/Google, painel admin e analytics;
+- consumo de APIs externas, histórico, exportação de dados e dashboard;
+- uso pragmático de IA com fallback local quando o provedor não está configurado.
+
+## Problema
+
+Monitoramento climático útil exige coletar dados externos, processar histórico, disponibilizar visualização por usuário e manter uma arquitetura que suporte ingestão contínua sem travar a experiência do painel.
+
+## Solução
+
+O GDASH organiza a solução em serviços separados: frontend React, API NestJS, MongoDB, RabbitMQ, coletor Python e worker Go para ingestão e persistência, com dashboard por cidade, histórico, exportação e insights.
+
+## Funcionalidades principais
+
+- Login por código no email e Google opcional.
+- Perfil com cidade preferida e busca por cidades brasileiras.
+- Clima atual, histórico horário de 30 dias e exportação CSV/XLSX.
+- Painel administrativo de usuários, visitas e usuários ativos.
+- Pipeline com RabbitMQ, coletor Python, worker Go e MongoDB.
+- Insights com Gemini opcional e fallback local.
+
+## Stack
+
+- React, Vite, TypeScript, Tailwind CSS e Recharts.
+- NestJS, MongoDB, Mongoose e Swagger.
+- RabbitMQ, Python, Go e Docker Compose.
+- Open-Meteo, Gemini API opcional, Vercel e Render.
+
+## Meu papel
+
+Desenvolvimento full stack do projeto, incluindo:
+- frontend, backend, pipeline de ingestão e dashboard;
+- autenticação, analytics, modelagem de dados e exportação;
+- integração com APIs externas, IA/fallback e serviços de deploy;
+- documentação de setup, deploy e arquitetura.
+
+## Status
+
+Case de portfólio / MVP funcional com versão publicada.
+
+## Demonstração
+
+- Link em produção: https://gdash-project-challenge.vercel.app/
+- Screenshots ou vídeo: não informado no repositório.
+- Repositório/case: https://github.com/alvaro-amorim/gdash-project-challenge
+
+---
+
+## Documentação técnica existente
+
 Plataforma full-stack de monitoramento climatico com frontend React, API NestJS, MongoDB, RabbitMQ, worker em Go e coletor em Python. O projeto combina consultas meteorologicas em tempo real, historico de 30 dias, insights por IA ou fallback local, autenticacao por codigo no email e painel administrativo de usuarios e visitas.
 
 ## Visao Geral
