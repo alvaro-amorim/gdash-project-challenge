@@ -4,9 +4,19 @@
 
 MVP de portfólio para coleta, persistência e visualização de dados climáticos. A arquitetura permite discutir ingestão por fila, APIs, histórico e integração opcional de IA; não representa uma operação de produção com confiabilidade já comprovada.
 
-**Ponto técnico prioritário:** o consumidor Go atual confirma mensagens automaticamente antes de verificar a persistência no backend. Falhas HTTP podem resultar em perda de mensagem. A correção exige confirmação após sucesso, tratamento de reentrega e testes de falha; não confundir esta revisão de documentação com a correção desse comportamento.
+**Confirmação da ingestão:** o consumidor Go usa confirmação manual e uma mensagem em processamento por consumidor. Somente respostas HTTP 200/201 da API confirmam a entrega. Erros HTTP, timeout e falhas de conexão devolvem a mensagem à fila após uma pausa de cinco segundos; redirecionamentos não são tratados como sucesso. Se o canal fechar ou a confirmação falhar, o processo encerra para que a política de reinício do container recupere o consumidor.
 
-O workflow `Weather Sync` executa sincronização de dados e não substitui testes/lint/build. Os testes do backend ficam em `backend-nestjs`; utilize `npm test -- --runInBand` após instalar suas dependências. Avaliações que enviam código de login ou acionam IA dependem de serviços externos e devem usar configurações próprias de teste.
+O workflow `Weather Sync` executa sincronização de dados. O workflow `Worker delivery checks` valida o worker com RabbitMQ descartável, testes com detector de concorrência, formatação, análise estática e build; também executa testes e build do backend. Avaliações que enviam código de login ou acionam IA dependem de serviços externos e devem usar configurações próprias de teste.
+
+### Validar ingestão sem dados de produção
+
+- Em `worker-go`: `go test -v ./...`, `go vet ./...` e `go build ./...`.
+- Para executar também a integração real, configure `GDASH_TEST_AMQP_URL` com uma instância RabbitMQ descartável. Os testes criam e removem somente filas com prefixo `gdash-test-`; não use o broker de produção. Sem essa variável, os testes de integração são explicitamente ignorados. A CI fornece essa instância.
+- Em `backend-nestjs`: `npm ci`, `npm test -- --runInBand` e `npm run build`.
+
+**Cobertura e limites:** a integração verifica falha HTTP seguida de reentrega, desconexão após sucesso da API antes da confirmação e limite de uma mensagem em processamento. Os testes unitários do backend verificam repetição sequencial da mesma medição e propagação de erro de persistência com um modelo em memória. A entrega é pelo menos uma vez: um POST pode se repetir se a confirmação for perdida. O upsert existente usa coordenadas e horário; o índice atual não é único, portanto esses testes não comprovam deduplicação sob consumidores concorrentes nem exatamente uma gravação.
+
+Mensagens com erro permanente também são preservadas para nova tentativa e exigem inspeção operacional; ainda não há limite automático de tentativas ou fila de falhas. A correção mantém a declaração da fila existente sem migração. A durabilidade da publicação pelo coletor e a recuperação completa do ambiente permanecem fora desta validação. [Referência de confirmações do RabbitMQ](https://www.rabbitmq.com/docs/confirms).
 
 Plataforma full stack de monitoramento climático com frontend React, API NestJS, MongoDB, RabbitMQ, worker em Go, coletor em Python e insights com IA ou fallback local.
 

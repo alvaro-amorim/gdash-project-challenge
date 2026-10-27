@@ -1,0 +1,70 @@
+name: Worker delivery checks
+
+on:
+  push:
+    paths:
+      - 'worker-go/**'
+      - 'backend-nestjs/**'
+      - '.github/workflows/worker-tests.yml'
+  pull_request:
+    paths:
+      - 'worker-go/**'
+      - 'backend-nestjs/**'
+      - '.github/workflows/worker-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        env:
+          RABBITMQ_DEFAULT_USER: gdash_test
+          RABBITMQ_DEFAULT_PASS: gdash_test_only
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        working-directory: worker-go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: worker-go/go.mod
+          cache-dependency-path: worker-go/go.sum
+      - name: Check formatting
+        run: test -z "$(gofmt -l *.go)"
+      - name: Vet
+        run: go vet ./...
+      - name: Unit and real-broker integration tests
+        env:
+          GDASH_TEST_AMQP_URL: amqp://gdash_test:gdash_test_only@localhost:5672/
+        run: go test -race -v ./...
+      - name: Build
+        run: go build ./...
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend-nestjs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend-nestjs/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm test -- --runInBand
+      - run: npm run build

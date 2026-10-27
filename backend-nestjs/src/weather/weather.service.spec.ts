@@ -198,6 +198,43 @@ describe('WeatherService', () => {
     expect(weatherModel.records).toHaveLength(2);
   });
 
+  it('keeps one record when the worker redelivers a persisted measurement', async () => {
+    const measurement = {
+      ...DEFAULT_LOCATION,
+      temp: 25,
+      humidity: 68,
+      wind_speed: 8,
+      precipitation: 0,
+      is_day: 1,
+      collected_at: '2026-03-24T12:00',
+    };
+
+    const first = await service.create(measurement);
+    const redelivery = await service.create(measurement);
+
+    expect(weatherModel.records).toHaveLength(1);
+    expect(redelivery).toEqual(first);
+  });
+
+  it('propagates persistence failure so the worker can retry the same measurement', async () => {
+    const measurement = {
+      ...DEFAULT_LOCATION,
+      temp: 25,
+      humidity: 68,
+      wind_speed: 8,
+      precipitation: 0,
+      is_day: 1,
+      collected_at: '2026-03-24T12:00',
+    };
+    jest.spyOn(weatherModel, 'bulkWrite').mockRejectedValueOnce(new Error('database unavailable'));
+
+    await expect(service.create(measurement)).rejects.toThrow('database unavailable');
+    expect(weatherModel.records).toHaveLength(0);
+
+    await service.create(measurement);
+    expect(weatherModel.records).toHaveLength(1);
+  });
+
   it('returns the latest stored live reading after import', async () => {
     await service.importMany([
       {
