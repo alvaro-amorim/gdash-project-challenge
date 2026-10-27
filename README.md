@@ -1,328 +1,85 @@
 # GDASH Analytics
 
-## Status e avaliação
+Aplicação Full Stack de monitoramento climático com dashboard, histórico e ingestão de dados por fila.
 
-MVP de portfólio para coleta, persistência e visualização de dados climáticos. A arquitetura permite discutir ingestão por fila, APIs, histórico e integração opcional de IA; não representa uma operação de produção com confiabilidade já comprovada.
+[Aplicação publicada](https://gdash-project-challenge.vercel.app/) · [Guia técnico](docs/TECHNICAL_GUIDE.md) · [CI](https://github.com/alvaro-amorim/gdash-project-challenge/actions/workflows/worker-tests.yml)
 
-**Confirmação da ingestão:** o consumidor Go usa confirmação manual e uma mensagem em processamento por consumidor. Somente respostas HTTP 200/201 da API confirmam a entrega. Erros HTTP, timeout e falhas de conexão devolvem a mensagem à fila após uma pausa de cinco segundos; redirecionamentos não são tratados como sucesso. Se o canal fechar ou a confirmação falhar, o processo encerra para que a política de reinício do container recupere o consumidor.
+## Visão geral
 
-O workflow `Weather Sync` executa sincronização de dados. O workflow `Worker delivery checks` valida o worker com RabbitMQ descartável, testes com detector de concorrência, formatação, análise estática e build; também executa testes e build do backend. Avaliações que enviam código de login ou acionam IA dependem de serviços externos e devem usar configurações próprias de teste.
+O GDASH coleta dados meteorológicos, mantém histórico e apresenta consultas por cidade. O projeto combina uma aplicação web com um pipeline local de ingestão e uma rotina independente de sincronização agendada.
 
-### Validar ingestão sem dados de produção
+**Estado:** MVP de portfólio com versão publicada. A disponibilidade do frontend não comprova que todos os componentes do pipeline estejam implantados.
 
-- Em `worker-go`: `go test -v ./...`, `go vet ./...` e `go build ./...`.
-- Para executar também a integração real, configure `GDASH_TEST_AMQP_URL` com uma instância RabbitMQ descartável. Os testes criam e removem somente filas com prefixo `gdash-test-`; não use o broker de produção. Sem essa variável, os testes de integração são explicitamente ignorados. A CI fornece essa instância.
-- Em `backend-nestjs`: `npm ci`, `npm test -- --runInBand` e `npm run build`.
+## Funcionalidades
 
-**Cobertura e limites:** a integração verifica falha HTTP seguida de reentrega, desconexão após sucesso da API antes da confirmação e limite de uma mensagem em processamento. Os testes unitários do backend verificam repetição sequencial da mesma medição e propagação de erro de persistência com um modelo em memória. A entrega é pelo menos uma vez: um POST pode se repetir se a confirmação for perdida. O upsert existente usa coordenadas e horário; o índice atual não é único, portanto esses testes não comprovam deduplicação sob consumidores concorrentes nem exatamente uma gravação.
-
-Mensagens com erro permanente também são preservadas para nova tentativa e exigem inspeção operacional; ainda não há limite automático de tentativas ou fila de falhas. A correção mantém a declaração da fila existente sem migração. A durabilidade da publicação pelo coletor e a recuperação completa do ambiente permanecem fora desta validação. [Referência de confirmações do RabbitMQ](https://www.rabbitmq.com/docs/confirms).
-
-Plataforma full stack de monitoramento climático com frontend React, API NestJS, MongoDB, RabbitMQ, worker em Go, coletor em Python e insights com IA ou fallback local.
-
-## Visão para recrutadores
-
-Este projeto demonstra:
-- arquitetura full stack com frontend, backend, worker, coletor e mensageria;
-- autenticação por email/Google, painel admin e analytics;
-- consumo de APIs externas, histórico, exportação de dados e dashboard;
-- uso pragmático de IA com fallback local quando o provedor não está configurado.
-
-## Problema
-
-Monitoramento climático útil exige coletar dados externos, processar histórico, disponibilizar visualização por usuário e manter uma arquitetura que suporte ingestão contínua sem travar a experiência do painel.
-
-## Solução
-
-O GDASH organiza a solução em serviços separados: frontend React, API NestJS, MongoDB, RabbitMQ, coletor Python e worker Go para ingestão e persistência, com dashboard por cidade, histórico, exportação e insights.
-
-## Funcionalidades principais
-
-- Login por código no email e Google opcional.
-- Perfil com cidade preferida e busca por cidades brasileiras.
-- Clima atual, histórico horário de 30 dias e exportação CSV/XLSX.
-- Painel administrativo de usuários, visitas e usuários ativos.
-- Pipeline com RabbitMQ, coletor Python, worker Go e MongoDB.
-- Insights com Gemini opcional e fallback local.
-
-## Stack
-
-- React, Vite, TypeScript, Tailwind CSS e Recharts.
-- NestJS, MongoDB, Mongoose e Swagger.
-- RabbitMQ, Python, Go e Docker Compose.
-- Open-Meteo, Gemini API opcional, Vercel e Render.
-
-## Meu papel
-
-Desenvolvimento full stack do projeto, incluindo:
-- frontend, backend, pipeline de ingestão e dashboard;
-- autenticação, analytics, modelagem de dados e exportação;
-- integração com APIs externas, IA/fallback e serviços de deploy;
-- documentação de setup, deploy e arquitetura.
-
-## Status
-
-Case de portfólio / MVP funcional com versão publicada.
-
-## Demonstração
-
-- Link em produção: https://gdash-project-challenge.vercel.app/
-- Screenshots ou vídeo: não informado no repositório.
-- Repositório/case: https://github.com/alvaro-amorim/gdash-project-challenge
-
----
-
-## Documentação técnica existente
-
-Plataforma full-stack de monitoramento climatico com frontend React, API NestJS, MongoDB, RabbitMQ, worker em Go e coletor em Python. O projeto combina consultas meteorologicas em tempo real, historico de 30 dias, insights por IA ou fallback local, autenticacao por codigo no email e painel administrativo de usuarios e visitas.
-
-## Visao Geral
-
-O sistema hoje atende dois fluxos principais:
-
-- Painel interativo por cidade: cada usuario pode escolher uma cidade do Brasil, carregar o clima atual, consultar historico horario dos ultimos 30 dias e visualizar 3 insights rotativos.
-- Pipeline orientada a eventos: o coletor busca dados climaticos, publica no RabbitMQ, o worker processa a fila e a API persiste os registros ingeridos no MongoDB.
-
-## Principais Recursos
-
-- Login por codigo enviado por email.
-- Login com Google quando `GOOGLE_CLIENT_ID` estiver configurado.
-- Seed automatica do usuario administrador com `ADMIN_EMAIL` e `ADMIN_NAME`.
-- Perfil por usuario com cidade preferida, estado, latitude, longitude e timezone.
-- Busca de cidades brasileiras via Open-Meteo Geocoding API.
-- Clima atual por cidade com 3 insights por consulta.
-- Rotacao automatica dos insights no card principal.
-- Historico horario de ate 30 dias por cidade.
-- Exportacao de dados em CSV e XLSX.
-- Painel admin com usuarios cadastrados, visitas e usuarios ativos.
-- Fallback local para insights quando a IA nao estiver configurada ou falhar.
-- Fallback de login em desenvolvimento: se nenhum provedor de email estiver configurado, o backend retorna o codigo de acesso para uso local.
+- Autenticação por código de e-mail e Google opcional.
+- Perfil com localização preferida e busca de cidades.
+- Clima atual, histórico horário e exportação CSV/XLSX.
+- Administração de usuários e indicadores de visita.
+- Insights com provider opcional de IA e fallback local.
+- Ingestão por RabbitMQ e sincronização meteorológica agendada.
 
 ## Arquitetura
 
-### Frontend
+~~~mermaid
+flowchart LR
+  C[Coletor Python] --> Q[RabbitMQ]
+  Q --> W[Worker Go]
+  W --> A[API NestJS]
+  A --> M[MongoDB]
+  F[Frontend React] --> A
+  S[Sincronização agendada] --> A
+~~~
 
-- `frontend-react`: React 19 + Vite + TypeScript.
-- Dashboard com autenticacao, cidade por usuario, graficos em Recharts, perfil e admin.
+## Decisões técnicas
 
-### Backend
+| Decisão | Objetivo |
+|---|---|
+| Coleta e consumo separados por fila | Desacoplar a origem dos dados da persistência na API. |
+| Confirmação manual após HTTP 200/201 | Preservar a mensagem quando a API falha. |
+| Uma entrega em processamento por consumidor | Limitar mensagens não confirmadas. |
+| Upsert por coordenadas e horário | Reutilizar a mesma medição em reentregas sequenciais. |
 
-- `backend-nestjs`: API NestJS com MongoDB via Mongoose.
-- Modulos principais:
-  - `auth`: login por email, Google e perfil autenticado.
-  - `users`: CRUD administrativo de usuarios.
-  - `weather`: clima atual, historico, busca de cidades e exportacao.
-  - `analytics`: visitas, heartbeat e overview admin.
+**Stack:** React, TypeScript, NestJS, MongoDB, RabbitMQ, Python, Go e Docker Compose.
 
-### Pipeline
+## Executar localmente
 
-- `collector-python`: coleta clima e publica eventos.
-- `worker-go`: consome a fila e envia para a API.
-- `rabbitmq`: barramento de mensagens.
-- `mongo`: persistencia principal.
+Configure um `.env` a partir de [.env.example](.env.example), usando serviços e dados de desenvolvimento. Depois:
 
-## Stack
-
-- React 19
-- Vite
-- TypeScript
-- Tailwind CSS
-- Recharts
-- NestJS 11
-- MongoDB
-- RabbitMQ
-- Python
-- Go
-- Docker Compose
-- Open-Meteo
-- Gemini API opcional
-
-## Como Rodar Localmente
-
-### 1. Criar o arquivo `.env`
-
-Crie um arquivo `.env` na raiz do projeto usando [.env.example](./.env.example) como base. Exemplo:
-
-```env
-GEMINI_API_KEY=
-
-RABBITMQ_DEFAULT_USER=admin
-RABBITMQ_DEFAULT_PASS=password123
-RABBIT_HOST=rabbitmq
-
-MONGO_URI=mongodb://admin:password123@mongo:27017/gdash?authSource=admin
-
-PORT=3000
-TZ=America/Sao_Paulo
-JWT_SECRET=troque_esta_chave
-ADMIN_EMAIL=seu-email@exemplo.com
-ADMIN_NAME=Seu Nome
-API_PUBLIC_URL=http://localhost:3000
-CORS_ORIGIN=http://localhost:5173
-TRUST_PROXY=false
-
-GOOGLE_CLIENT_ID=
-RESEND_API_KEY=
-RESEND_FROM_EMAIL=GDASH <noreply@seu-dominio.com>
-VITE_API_BASE_URL=http://localhost:3000
-VITE_GOOGLE_CLIENT_ID=
-
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=
-SMTP_PASS=
-SMTP_FROM_EMAIL=
-```
-
-### 2. Subir os servicos
-
-```powershell
+~~~bash
 docker compose up -d --build
-```
+~~~
 
-### 3. Acessar
+- Frontend: `http://localhost:5173`.
+- API: `http://localhost:3000`.
+- RabbitMQ Management: `http://localhost:15672`.
 
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:3000`
-- Swagger: `http://localhost:3000/api`
-- RabbitMQ Management: `http://localhost:15672`
+O [guia técnico](docs/TECHNICAL_GUIDE.md) descreve autenticação, variáveis, endpoints e implantação.
 
-## Reset Completo do Banco
+## Verificação
 
-Para apagar todos os dados e recriar o banco do zero:
+No diretório `backend-nestjs`:
 
-```powershell
-docker compose down -v --remove-orphans
-docker compose up -d --build
-```
+~~~bash
+npm ci
+npm test -- --runInBand
+npm run build
+~~~
 
-Quando o backend iniciar novamente, ele recria automaticamente o admin definido em `ADMIN_EMAIL`.
+No diretório `worker-go`:
 
-## Fluxo de Login
+~~~bash
+go test -v ./...
+go vet ./...
+go build ./...
+~~~
 
-### Email
+O workflow **Worker delivery checks** executa testes e build do backend, além de formatação, análise estática e testes do worker com RabbitMQ descartável e detector de concorrência. A [execução da correção de ingestão](https://github.com/alvaro-amorim/gdash-project-challenge/actions/runs/40579098921) foi aprovada.
 
-1. O admin inicial e criado automaticamente com o email definido no `.env`.
-2. O admin pode acessar o painel e criar novos usuarios.
-3. Cada usuario entra informando o email e recebendo um codigo de 6 digitos.
+## Confiabilidade e limites
 
-Se nenhum provedor de email estiver configurado, o backend entra em fallback de desenvolvimento e retorna o codigo para login local.
+A entrega é pelo menos uma vez: um POST pode se repetir se a confirmação for perdida após a persistência. Falhas retornam à fila após cinco segundos; redirecionamentos não contam como sucesso.
 
-### Provedores de email
+Ainda não há fila de falhas ou limite de tentativas. O índice de medições não é único; a validação de reentrega sequencial não comprova deduplicação sob consumidores concorrentes. A nova lógica depende da implantação do worker atualizado no ambiente Docker.
 
-- `RESEND_API_KEY` + `RESEND_FROM_EMAIL`: melhor opcao para hosts gratis que bloqueiam SMTP.
-- `SMTP_HOST` + `SMTP_FROM_EMAIL`: continua suportado para ambientes que permitem saida SMTP.
-
-### Google
-
-O login Google e opcional. Para habilitar:
-
-- configure `GOOGLE_CLIENT_ID` no backend e no frontend
-- use um client web no Google Identity
-- adicione `http://localhost:5173` nas origens autorizadas em desenvolvimento
-
-Se `GOOGLE_CLIENT_ID` estiver vazio, o app continua funcionando normalmente sem esse botao.
-
-## Insights e Clima
-
-- O clima atual e consultado por cidade usando Open-Meteo.
-- O historico usa dados horarios da API historica da Open-Meteo.
-- A IA tenta gerar exatamente 3 insights por consulta.
-- Esses 3 insights revezam automaticamente no card principal do dashboard.
-- Se nao houver `GEMINI_API_KEY`, se a IA falhar, ou se nao existir usuario ativo, o sistema usa 3 insights de fallback coerentes com os dados atuais.
-
-## Endpoints Principais
-
-### Auth
-
-- `POST /auth/request-login-code`
-- `POST /auth/verify-login-code`
-- `POST /auth/google`
-- `GET /auth/me`
-- `PATCH /auth/me`
-
-### Usuarios
-
-- `POST /users`
-- `GET /users`
-- `GET /users/:id`
-- `DELETE /users/:id`
-
-### Weather
-
-- `GET /weather/cities?q=juiz`
-- `GET /weather/live?...`
-- `GET /weather/history?...`
-- `GET /weather`
-- `GET /weather/export/csv`
-- `GET /weather/export/xlsx`
-- `POST /weather`
-
-### Analytics
-
-- `GET /analytics/active-users`
-- `POST /analytics/visits/start`
-- `POST /analytics/visits/heartbeat`
-- `POST /analytics/visits/end`
-- `GET /analytics/overview`
-- `GET /analytics/visits`
-
-## Deploy Gratis Recomendado
-
-Para publicar o app com o menor custo e a menor quantidade de infraestrutura, a recomendacao atual e:
-
-- frontend no Vercel
-- backend no Render Free
-- banco no MongoDB Atlas Free
-- login com Google como opcao mais simples
-
-Se voce tem dominio proprio, a estrutura recomendada e:
-
-- `app.seu-dominio.com` para o frontend
-- `api.seu-dominio.com` para o backend
-- `noreply@seu-dominio.com` para os emails transacionais
-
-Se quiser o passo a passo completo, veja [docs/deploy-gratis.md](./docs/deploy-gratis.md).
-
-## Deploy do Frontend no Vercel
-
-O repositorio tem um `vercel.json` na raiz para fazer o deploy do frontend que esta dentro de `frontend-react`.
-
-### Configuracao recomendada
-
-- Root do projeto: raiz do repositorio
-- Framework: Vite
-- Variavel obrigatoria: `VITE_API_BASE_URL`
-
-Exemplo:
-
-```env
-VITE_API_BASE_URL=https://seu-backend-publico.com
-```
-
-### Importante
-
-- O Vercel publica apenas o frontend.
-- O backend e o MongoDB precisam estar hospedados em outro ambiente.
-- Para o deploy gratis inicial, `RabbitMQ`, `worker-go` e `collector-python` podem ficar de fora.
-- Se `VITE_API_BASE_URL` nao apontar para uma API publica valida, o frontend sobe mas nao consegue autenticar nem carregar clima.
-
-## Estrutura de Pastas
-
-```text
-.
-|-- backend-nestjs
-|-- collector-python
-|-- frontend-react
-|-- worker-go
-|-- docker-compose.yml
-|-- vercel.json
-```
-
-## Observacoes
-
-- Para Gmail SMTP, use App Password em vez da senha normal da conta.
-- O projeto funciona localmente mesmo sem SMTP e sem Gemini, usando os fallbacks descritos acima.
-- O frontend foi pensado para consumo via JWT; o token e persistido localmente no navegador.
-- O painel por cidade usa as rotas novas de `live` e `history`, enquanto a pipeline de ingestao continua disponivel para registros e exportacoes.
+[Detalhes de reentrega, testes e operação](docs/TECHNICAL_GUIDE.md).
