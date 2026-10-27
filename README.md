@@ -1,5 +1,13 @@
 # GDASH Analytics
 
+## Status e avaliação
+
+MVP de portfólio para coleta, persistência e visualização de dados climáticos. A arquitetura permite discutir ingestão por fila, APIs, histórico e integração opcional de IA; não representa uma operação de produção com confiabilidade já comprovada.
+
+**Ponto técnico prioritário:** o consumidor Go atual confirma mensagens automaticamente antes de verificar a persistência no backend. Falhas HTTP podem resultar em perda de mensagem. A correção exige confirmação após sucesso, tratamento de reentrega e testes de falha; não confundir esta revisão de documentação com a correção desse comportamento.
+
+O workflow `Weather Sync` executa sincronização de dados e não substitui testes/lint/build. Os testes do backend ficam em `backend-nestjs`; utilize `npm test -- --runInBand` após instalar suas dependências. Avaliações que enviam código de login ou acionam IA dependem de serviços externos e devem usar configurações próprias de teste.
+
 Plataforma full stack de monitoramento climático com frontend React, API NestJS, MongoDB, RabbitMQ, worker em Go, coletor em Python e insights com IA ou fallback local.
 
 ## Visão para recrutadores
